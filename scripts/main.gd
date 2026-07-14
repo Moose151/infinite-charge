@@ -1,8 +1,6 @@
 extends Control
 
 const UPGRADE_PATH: String = "res://data/upgrades/garage_upgrades.json"
-const AUTOSAVE_INTERVAL: float = 10.0
-const MAX_OFFLINE_SECONDS: float = 60.0 * 60.0 * 8.0
 
 var state: GameState = GameState.new()
 var simulation: Simulation = Simulation.new()
@@ -17,12 +15,17 @@ var price_label: Label
 var demand_label: Label
 var sales_label: Label
 var production_label: Label
+var market_label: Label
 var material_price_label: Label
 var risk_label: Label
 var stats_label: Label
 var event_log_label: RichTextLabel
 var offline_report_label: RichTextLabel
 var price_slider: HSlider
+var pause_button: CheckButton
+var speed_option: OptionButton
+var autosave_spin: SpinBox
+var offline_limit_spin: SpinBox
 
 func _ready() -> void:
 	upgrades = _load_upgrade_data()
@@ -37,9 +40,10 @@ func _ready() -> void:
 	_refresh_ui()
 
 func _process(delta: float) -> void:
-	simulation.advance(state, delta)
+	if not state.simulation_paused:
+		simulation.advance(state, delta * state.simulation_speed)
 	autosave_timer += delta
-	if autosave_timer >= AUTOSAVE_INTERVAL:
+	if autosave_timer >= state.autosave_interval:
 		autosave_timer = 0.0
 		SaveManager.save_game(state)
 
@@ -114,6 +118,63 @@ func _build_ui() -> void:
 	demand_label = _add_label(middle)
 	sales_label = _add_label(middle)
 	production_label = _add_label(middle)
+	market_label = _add_label(middle)
+
+	var controls_heading: Label = Label.new()
+	controls_heading.text = "Settings"
+	controls_heading.add_theme_font_size_override("font_size", 18)
+	middle.add_child(controls_heading)
+
+	pause_button = CheckButton.new()
+	pause_button.text = "Pause simulation"
+	pause_button.toggled.connect(_on_pause_toggled)
+	middle.add_child(pause_button)
+
+	var speed_row: HBoxContainer = HBoxContainer.new()
+	speed_row.add_theme_constant_override("separation", 8)
+	middle.add_child(speed_row)
+
+	var speed_label: Label = Label.new()
+	speed_label.text = "Speed"
+	speed_row.add_child(speed_label)
+
+	speed_option = OptionButton.new()
+	speed_option.add_item("0.5x")
+	speed_option.add_item("1x")
+	speed_option.add_item("2x")
+	speed_option.add_item("5x")
+	speed_option.item_selected.connect(_on_speed_selected)
+	speed_row.add_child(speed_option)
+
+	var autosave_row: HBoxContainer = HBoxContainer.new()
+	autosave_row.add_theme_constant_override("separation", 8)
+	middle.add_child(autosave_row)
+
+	var autosave_label: Label = Label.new()
+	autosave_label.text = "Autosave seconds"
+	autosave_row.add_child(autosave_label)
+
+	autosave_spin = SpinBox.new()
+	autosave_spin.min_value = 5.0
+	autosave_spin.max_value = 300.0
+	autosave_spin.step = 5.0
+	autosave_spin.value_changed.connect(_on_autosave_changed)
+	autosave_row.add_child(autosave_spin)
+
+	var offline_row: HBoxContainer = HBoxContainer.new()
+	offline_row.add_theme_constant_override("separation", 8)
+	middle.add_child(offline_row)
+
+	var offline_label: Label = Label.new()
+	offline_label.text = "Offline hours"
+	offline_row.add_child(offline_label)
+
+	offline_limit_spin = SpinBox.new()
+	offline_limit_spin.min_value = 1.0
+	offline_limit_spin.max_value = 72.0
+	offline_limit_spin.step = 1.0
+	offline_limit_spin.value_changed.connect(_on_offline_limit_changed)
+	offline_row.add_child(offline_limit_spin)
 
 	var save_button: Button = Button.new()
 	save_button.text = "Manual Save"
@@ -175,6 +236,24 @@ func _on_price_changed(value: float) -> void:
 func _on_upgrade_pressed(definition: Dictionary) -> void:
 	simulation.buy_upgrade(state, definition)
 
+func _on_pause_toggled(toggled_on: bool) -> void:
+	state.simulation_paused = toggled_on
+	state.add_event("Simulation paused. Productivity has entered a reflective period." if toggled_on else "Simulation resumed. Reflection has been deprioritised.")
+
+func _on_speed_selected(index: int) -> void:
+	var speeds: Array[float] = [0.5, 1.0, 2.0, 5.0]
+	state.simulation_speed = speeds[clampi(index, 0, speeds.size() - 1)]
+	state.add_event("Simulation speed set to %sx." % Formulas.format_number(state.simulation_speed))
+
+func _on_autosave_changed(value: float) -> void:
+	state.autosave_interval = value
+	autosave_timer = 0.0
+	state.notify_changed()
+
+func _on_offline_limit_changed(value: float) -> void:
+	state.offline_limit_seconds = value * 60.0 * 60.0
+	state.notify_changed()
+
 func _manual_save() -> void:
 	var error: Error = SaveManager.save_game(state)
 	if error == OK:
@@ -188,15 +267,26 @@ func _refresh_ui() -> void:
 	state.demand_per_second = Formulas.demand_per_second(state)
 	if not is_equal_approx(price_slider.value, state.sale_price):
 		price_slider.set_value_no_signal(state.sale_price)
+	if pause_button.button_pressed != state.simulation_paused:
+		pause_button.set_pressed_no_signal(state.simulation_paused)
+	_sync_speed_option()
+	if not is_equal_approx(autosave_spin.value, state.autosave_interval):
+		autosave_spin.set_value_no_signal(state.autosave_interval)
+	var offline_hours: float = state.offline_limit_seconds / 3600.0
+	if not is_equal_approx(offline_limit_spin.value, offline_hours):
+		offline_limit_spin.set_value_no_signal(offline_hours)
 	cash_label.text = "Cash: $%s" % Formulas.format_number(state.cash)
 	materials_label.text = "Materials: %s units" % Formulas.format_number(state.raw_materials)
 	inventory_label.text = "Battery inventory: %s cells" % Formulas.format_number(state.battery_cells)
 	material_price_label.text = "Material price: $%s/unit" % Formulas.format_number(Formulas.material_unit_cost(state))
 	risk_label.text = "Security risk: %d%%" % roundi(Formulas.effective_risk(state) * 100.0)
-	stats_label.text = "Lifetime sold: %s cells\nLifetime revenue: $%s\nSecurity losses: $%s" % [
+	stats_label.text = "Lifetime made: %s cells\nLifetime sold: %s cells\nLifetime revenue: $%s\nMaterials bought: %s\nSecurity losses: $%s\nTime operated: %s" % [
+		Formulas.format_number(state.lifetime_cells_made),
 		Formulas.format_number(state.lifetime_cells_sold),
 		Formulas.format_number(state.lifetime_revenue),
-		Formulas.format_number(state.lifetime_security_losses)
+		Formulas.format_number(state.lifetime_materials_bought),
+		Formulas.format_number(state.lifetime_security_losses),
+		_format_duration(state.seconds_played)
 	]
 	price_label.text = "Sale price: $%s/cell" % Formulas.format_number(state.sale_price)
 	demand_label.text = "Potential demand: %s cells/sec" % Formulas.format_number(state.demand_per_second)
@@ -205,9 +295,24 @@ func _refresh_ui() -> void:
 		Formulas.format_number(state.production_per_second),
 		Formulas.format_number(state.manual_output)
 	]
+	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
+	var sell_through: float = Formulas.sell_through_per_second(state)
+	market_label.text = "Estimated margin: $%s/cell\nInventory sell-through: %s cells/sec\nDemand note: lower prices sell faster; quality, trust, and risk also move demand." % [
+		Formulas.format_number(estimated_margin),
+		Formulas.format_number(sell_through)
+	]
 	_update_upgrade_buttons()
 	_update_event_log()
 	_update_offline_report()
+
+func _sync_speed_option() -> void:
+	var speeds: Array[float] = [0.5, 1.0, 2.0, 5.0]
+	var selected_index: int = 1
+	for index: int in range(speeds.size()):
+		if is_equal_approx(speeds[index], state.simulation_speed):
+			selected_index = index
+	if speed_option.selected != selected_index:
+		speed_option.select(selected_index)
 
 func _update_upgrade_buttons() -> void:
 	for definition: Dictionary in upgrades:
@@ -267,7 +372,7 @@ func _apply_offline_progress() -> void:
 	if state.last_saved_unix_time <= 0:
 		return
 	var now: int = Time.get_unix_time_from_system()
-	var seconds_away: float = clampf(float(now - state.last_saved_unix_time), 0.0, MAX_OFFLINE_SECONDS)
+	var seconds_away: float = clampf(float(now - state.last_saved_unix_time), 0.0, state.offline_limit_seconds)
 	if seconds_away < 5.0:
 		return
 	state.offline_report = simulation.advance(state, seconds_away, false)

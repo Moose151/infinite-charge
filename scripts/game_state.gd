@@ -37,6 +37,11 @@ var lifetime_materials_bought: float = 0.0
 var lifetime_security_losses: float = 0.0
 var seconds_played: float = 0.0
 
+var simulation_paused: bool = false
+var simulation_speed: float = 1.0
+var autosave_interval: float = 10.0
+var offline_limit_seconds: float = 60.0 * 60.0 * 8.0
+
 var upgrade_levels: Dictionary = {}
 var event_log: Array[String] = []
 var offline_report: Dictionary = {}
@@ -79,6 +84,10 @@ func to_save_data() -> Dictionary:
 		"lifetime_materials_bought": lifetime_materials_bought,
 		"lifetime_security_losses": lifetime_security_losses,
 		"seconds_played": seconds_played,
+		"simulation_paused": simulation_paused,
+		"simulation_speed": simulation_speed,
+		"autosave_interval": autosave_interval,
+		"offline_limit_seconds": offline_limit_seconds,
 		"upgrade_levels": upgrade_levels,
 		"event_log": event_log,
 	}
@@ -111,6 +120,10 @@ func load_save_data(data: Dictionary) -> void:
 	lifetime_materials_bought = float(data.get("lifetime_materials_bought", lifetime_materials_bought))
 	lifetime_security_losses = float(data.get("lifetime_security_losses", lifetime_security_losses))
 	seconds_played = float(data.get("seconds_played", seconds_played))
+	simulation_paused = bool(data.get("simulation_paused", simulation_paused))
+	simulation_speed = float(data.get("simulation_speed", simulation_speed))
+	autosave_interval = float(data.get("autosave_interval", autosave_interval))
+	offline_limit_seconds = float(data.get("offline_limit_seconds", offline_limit_seconds))
 	upgrade_levels = data.get("upgrade_levels", {})
 	event_log.clear()
 	for message in data.get("event_log", []):

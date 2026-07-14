@@ -29,6 +29,8 @@ The project is currently focused on the first garage-stage MVP:
 
 ## Next Implementation Step
 
+See `docs/HANDOVER.md` for project context and assistant handoff notes.
+
 Open the project in Godot 4, run `scenes/Main.tscn`, and tune the first 10 minutes of play:
 
 1. material purchase cost

@@ -16,6 +16,12 @@ static func effective_risk(state: GameState) -> float:
 static func material_unit_cost(state: GameState) -> float:
 	return maxf(0.05, state.material_price * (1.0 - clampf(state.material_discount, 0.0, 0.85)))
 
+static func estimated_margin_per_cell(state: GameState) -> float:
+	return state.sale_price - material_unit_cost(state)
+
+static func sell_through_per_second(state: GameState) -> float:
+	return minf(state.battery_cells, demand_per_second(state))
+
 static func upgrade_cost(definition: Dictionary, level: int) -> float:
 	var base_cost: float = float(definition.get("base_cost", 1.0))
 	var cost_scale: float = float(definition.get("cost_scale", 1.5))
