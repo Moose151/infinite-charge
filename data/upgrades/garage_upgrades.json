@@ -1,0 +1,94 @@
+[
+  {
+    "id": "better_tools",
+    "name": "Better Hand Tools",
+    "description": "Fewer stripped screws. Morale has not been formally measured.",
+    "base_cost": 35.0,
+    "cost_scale": 1.55,
+    "max_level": 8,
+    "effects": {
+      "manual_output_add": 1.0
+    }
+  },
+  {
+    "id": "bulk_material_buying",
+    "name": "Bulk Material Buying",
+    "description": "The supplier has agreed to send fewer boxes containing smaller boxes.",
+    "base_cost": 60.0,
+    "cost_scale": 1.6,
+    "max_level": 6,
+    "effects": {
+      "material_discount_add": 0.04
+    }
+  },
+  {
+    "id": "simple_advertising",
+    "name": "Simple Advertising",
+    "description": "A local poster campaign confirms that batteries do, in fact, exist.",
+    "base_cost": 75.0,
+    "cost_scale": 1.65,
+    "max_level": 8,
+    "effects": {
+      "awareness_add": 0.18
+    }
+  },
+  {
+    "id": "workbench_automation",
+    "name": "Workbench Automation",
+    "description": "A small machine now performs one task almost without complaint.",
+    "base_cost": 140.0,
+    "cost_scale": 1.7,
+    "max_level": 10,
+    "effects": {
+      "production_per_second_add": 0.15,
+      "risk_add": 0.015
+    }
+  },
+  {
+    "id": "improved_cell_design",
+    "name": "Improved Cell Design",
+    "description": "Customers enjoy products that look less experimental.",
+    "base_cost": 220.0,
+    "cost_scale": 1.75,
+    "max_level": 8,
+    "effects": {
+      "quality_add": 0.08,
+      "base_price_add": 0.55
+    }
+  },
+  {
+    "id": "firewall",
+    "name": "Firewall",
+    "description": "Traffic now enters through an approved rectangle.",
+    "base_cost": 120.0,
+    "cost_scale": 1.8,
+    "max_level": 4,
+    "effects": {
+      "risk_reduction_add": 0.08
+    }
+  },
+  {
+    "id": "backups",
+    "name": "Backups",
+    "description": "Critical files are stored somewhere everyone promises to remember.",
+    "base_cost": 160.0,
+    "cost_scale": 1.85,
+    "max_level": 4,
+    "effects": {
+      "recovery_add": 0.12,
+      "risk_reduction_add": 0.03
+    }
+  },
+  {
+    "id": "multifactor_authentication",
+    "name": "Multifactor Authentication",
+    "description": "Employees now prove they are themselves in at least two inconvenient ways.",
+    "base_cost": 210.0,
+    "cost_scale": 1.9,
+    "max_level": 4,
+    "effects": {
+      "risk_reduction_add": 0.07,
+      "trust_add": 0.05
+    }
+  }
+]

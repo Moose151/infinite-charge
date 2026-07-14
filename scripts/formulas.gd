@@ -1,0 +1,31 @@
+extends RefCounted
+class_name Formulas
+
+static func demand_per_second(state: GameState) -> float:
+	var fair_price: float = maxf(0.25, state.base_value * state.quality)
+	var price_ratio: float = state.sale_price / fair_price
+	var price_factor: float = pow(price_ratio, -1.35)
+	var trust_factor: float = 1.0 + state.trust * 0.35
+	var security_penalty: float = clampf(effective_risk(state) * 0.55, 0.0, 0.45)
+	var quality_factor: float = clampf(state.quality, 0.25, 4.0)
+	return maxf(0.0, 0.55 * state.awareness * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
+
+static func effective_risk(state: GameState) -> float:
+	return clampf(state.risk - state.risk_reduction, 0.0, 1.0)
+
+static func material_unit_cost(state: GameState) -> float:
+	return maxf(0.05, state.material_price * (1.0 - clampf(state.material_discount, 0.0, 0.85)))
+
+static func upgrade_cost(definition: Dictionary, level: int) -> float:
+	var base_cost: float = float(definition.get("base_cost", 1.0))
+	var cost_scale: float = float(definition.get("cost_scale", 1.5))
+	return ceilf(base_cost * pow(cost_scale, level))
+
+static func format_number(value: float) -> String:
+	if absf(value) >= 1000000.0:
+		return "%.2fM" % (value / 1000000.0)
+	if absf(value) >= 1000.0:
+		return "%.2fk" % (value / 1000.0)
+	if absf(value) >= 100.0:
+		return "%.0f" % value
+	return "%.2f" % value
