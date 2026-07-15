@@ -4,6 +4,17 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.3 — 2026-07-15
+
+Milestone One begins: warehouse capacity and maintenance, plus MVP readability polish.
+
+- Warehouse capacity (starts at 60 cells): automated and manual production halt when storage is full. New Garage Shelving upgrade (+60 capacity per level, 8 levels).
+- Maintenance: automated production wears machines down; efficiency drops from 100% toward 40% as condition falls. A Service Machines button restores condition for a cash cost that scales with automation size and wear. New Preventive Maintenance upgrade reduces wear.
+- Offline progress now simulates in 30-second chunks so warehouse capacity doesn't cap an entire night's production at one warehouse-load.
+- UI readability: security risk shows its breakdown (base + operations − defenses), inventory shows capacity and cash value at the current price, stats track sales lost to stock-outs.
+- Harness bot services machines; test suite extended to 72 checks (capacity, maintenance, lost sales, chunked offline advance).
+- Balance check: at the default $4 price the hour now yields ~$80k revenue (v0.2: ~$103k) — the new upkeep friction costs ~23%, progression stays smooth with no stalls.
+
 ## 0.2 — 2026-07-15
 
 Balance pass, meaningful security, and test infrastructure.

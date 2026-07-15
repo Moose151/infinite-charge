@@ -27,6 +27,8 @@ var speed_option: OptionButton
 var autosave_spin: SpinBox
 var offline_limit_spin: SpinBox
 var ui_scale_option: OptionButton
+var condition_label: Label
+var service_button: Button
 
 const UI_SCALES: Array[float] = [1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -128,6 +130,12 @@ func _build_ui() -> void:
 	demand_label = _add_label(middle)
 	sales_label = _add_label(middle)
 	production_label = _add_label(middle)
+
+	condition_label = _add_label(middle)
+	service_button = Button.new()
+	service_button.pressed.connect(func() -> void: simulation.service_machines(state))
+	middle.add_child(service_button)
+
 	market_label = _add_label(middle)
 
 	var controls_heading: Label = Label.new()
@@ -310,15 +318,25 @@ func _refresh_ui() -> void:
 	_sync_ui_scale_option()
 	cash_label.text = "Cash: $%s" % Formulas.format_number(state.cash)
 	materials_label.text = "Materials: %s units" % Formulas.format_number(state.raw_materials)
-	inventory_label.text = "Battery inventory: %s cells" % Formulas.format_number(state.battery_cells)
+	inventory_label.text = "Battery inventory: %s / %s cells (worth $%s at current price)" % [
+		Formulas.format_number(state.battery_cells),
+		Formulas.format_number(state.warehouse_capacity),
+		Formulas.format_number(state.battery_cells * state.sale_price)
+	]
 	material_price_label.text = "Material price: $%s/unit" % Formulas.format_number(Formulas.material_unit_cost(state))
-	risk_label.text = "Security risk: %d%%" % roundi(Formulas.effective_risk(state) * 100.0)
-	stats_label.text = "Lifetime made: %s cells\nLifetime sold: %s cells\nLifetime revenue: $%s\nMaterials bought: %s\nSecurity losses: $%s\nTime operated: %s" % [
+	var operations_risk: float = maxf(0.0, state.risk - 0.06)
+	risk_label.text = "Security risk: %d%% (base 6%% + operations %d%% - defenses %d%%)" % [
+		roundi(Formulas.effective_risk(state) * 100.0),
+		roundi(operations_risk * 100.0),
+		roundi(state.risk_reduction * 100.0)
+	]
+	stats_label.text = "Lifetime made: %s cells\nLifetime sold: %s cells\nLifetime revenue: $%s\nMaterials bought: %s\nSecurity losses: $%s\nSales lost to stock-outs: %s cells\nTime operated: %s" % [
 		Formulas.format_number(state.lifetime_cells_made),
 		Formulas.format_number(state.lifetime_cells_sold),
 		Formulas.format_number(state.lifetime_revenue),
 		Formulas.format_number(state.lifetime_materials_bought),
 		Formulas.format_number(state.lifetime_security_losses),
+		Formulas.format_number(state.lifetime_sales_lost),
 		_format_duration(state.seconds_played)
 	]
 	price_label.text = "Sale price: $%s/cell" % Formulas.format_number(state.sale_price)
@@ -334,6 +352,7 @@ func _refresh_ui() -> void:
 			Formulas.format_number(state.production_per_second),
 			Formulas.format_number(state.manual_output)
 		]
+	_update_maintenance_row()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
 	market_label.text = "Estimated margin: $%s/cell\nInventory sell-through: %s cells/sec\nDemand note: lower prices sell faster; quality, trust, and risk also move demand." % [
@@ -343,6 +362,25 @@ func _refresh_ui() -> void:
 	_update_upgrade_buttons()
 	_update_event_log()
 	_update_offline_report()
+
+func _update_maintenance_row() -> void:
+	if state.production_per_second <= 0.0:
+		condition_label.visible = false
+		service_button.visible = false
+		return
+	condition_label.visible = true
+	service_button.visible = true
+	condition_label.text = "Machine condition: %d%% (efficiency %d%%)" % [
+		roundi(state.machine_condition * 100.0),
+		roundi(Formulas.machine_efficiency(state) * 100.0)
+	]
+	var cost: float = Formulas.service_cost(state)
+	if state.machine_condition >= 0.995:
+		service_button.text = "Service Machines (not needed)"
+		service_button.disabled = true
+	else:
+		service_button.text = "Service Machines - $%s" % Formulas.format_number(cost)
+		service_button.disabled = state.cash < cost
 
 func _sync_ui_scale_option() -> void:
 	var selected_index: int = 0
@@ -422,8 +460,7 @@ func _apply_offline_progress() -> void:
 	var seconds_away: float = clampf(float(now - state.last_saved_unix_time), 0.0, state.offline_limit_seconds)
 	if seconds_away < 5.0:
 		return
-	state.offline_report = simulation.advance(state, seconds_away, false)
-	state.offline_report["seconds"] = seconds_away
+	state.offline_report = simulation.advance_chunked(state, seconds_away, false)
 
 func _format_duration(seconds: float) -> String:
 	var total: int = roundi(seconds)

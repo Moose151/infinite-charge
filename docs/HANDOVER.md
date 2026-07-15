@@ -4,7 +4,9 @@
 
 Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-stage MVP: one scene, a data-driven upgrade list, data-driven security events, a separate simulation layer, JSON save/load, offline progress, a headless balance harness, a headless test suite, and a simple desktop UI.
 
-The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 4, automation grows to ~3.5 cells/sec (clicking becomes optional), and nearly all upgrades max out within 50–60 minutes. The optimal sale price shifts from ~$4 early (demand-limited) to ~$6+ late (supply-limited), so the pricing decision stays live throughout the session.
+The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 5, clicking becomes optional as automation scales, and most upgrades max out within the hour. The optimal sale price shifts from ~$4 early (demand-limited) toward $6 late (supply-limited), so the pricing decision stays live throughout the session.
+
+Milestone One has started. Warehouse capacity and maintenance are in (v0.3): storage caps production until Garage Shelving is bought, machines wear down as automation runs (efficiency 100% → 40%), and servicing costs cash scaled to automation size and wear. Remaining Milestone One systems: production stages, quality, employees, energy consumption, first contracts.
 
 The project has been pushed to GitHub:
 
@@ -50,7 +52,7 @@ Avoid starting factories, staff, research trees, contracts, prestige, network ma
 - `scripts/save_manager.gd` writes/reads JSON from `user://save_slot_1.json`.
 - `data/upgrades/garage_upgrades.json` defines current upgrades and effects.
 - `data/events/security_events.json` defines security events: trigger cadence, chance scaling with risk, and per-event type (`cash`, `inventory`, `downtime`), weight, severity range, and message.
-- `tools/run_tests.gd` is the headless test suite (53 checks over Formulas, Simulation actions, security events, downtime, bankruptcy rescue, save round-trip). Run: `godot --headless --path . --script res://tools/run_tests.gd` (exits non-zero on failure).
+- `tools/run_tests.gd` is the headless test suite (72 checks over Formulas, Simulation actions, security events, downtime, warehouse capacity, maintenance, chunked offline advance, bankruptcy rescue, save round-trip). Run: `godot --headless --path . --script res://tools/run_tests.gd` (exits non-zero on failure).
 - `tools/balance_harness.gd` simulates a bot player for an hour at several fixed prices and prints a progression table. Run: `godot --headless --path . --script res://tools/balance_harness.gd`.
 
 Keep simulation behavior out of UI code whenever possible. Future offline progress, tests, automation, and balance tools all depend on `Simulation.advance()` staying independent from the interface.
@@ -84,10 +86,9 @@ The player can:
 
 ## Recommended Next Steps
 
-1. Human-playtest the first 10 minutes and adjust feel: click cadence, event frequency, message tone.
-2. Consider showing effective risk breakdown (base + upgrades − mitigations) so the security trade-off reads clearly in the UI.
-3. Consider an inventory-value line and a "sales lost to stock-outs" stat so supply-limited late game is legible.
-4. Once the loop is readable and satisfying, begin Milestone One: production stages, maintenance, quality, warehouse capacity, and first contracts.
+1. Human-playtest the first 10 minutes and adjust feel: click cadence, event frequency, message tone, and whether warehouse-full and machine-wear moments read clearly.
+2. Continue Milestone One in this order: production stages + quality (multi-step manufacturing feeding the demand formula), then first contracts (bulk orders with deadlines vs the spot market), then employees + energy.
+3. Consider surfacing wear rate and time-to-empty-warehouse estimates once production stages add complexity.
 
 ## Balance Changes (2026-07-15)
 

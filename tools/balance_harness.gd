@@ -57,6 +57,10 @@ func _run_playthrough(sale_price: float) -> void:
 			if batch >= 1.0:
 				simulation.buy_materials(state, batch)
 
+		# Service machines before wear eats too much output.
+		if state.machine_condition < 0.7 and state.cash >= Formulas.service_cost(state) + 20.0:
+			simulation.service_machines(state)
+
 		# Greedy: buy the cheapest affordable upgrade, keeping a cash reserve.
 		var best: Dictionary = {}
 		var best_cost: float = INF

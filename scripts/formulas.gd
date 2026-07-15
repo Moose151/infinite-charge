@@ -22,6 +22,18 @@ static func estimated_margin_per_cell(state: GameState) -> float:
 static func sell_through_per_second(state: GameState) -> float:
 	return minf(state.battery_cells, demand_per_second(state))
 
+static func machine_efficiency(state: GameState) -> float:
+	return 0.4 + 0.6 * clampf(state.machine_condition, 0.0, 1.0)
+
+static func wear_per_cell(state: GameState) -> float:
+	return 0.00025 * (1.0 - clampf(state.wear_reduction, 0.0, 0.8))
+
+static func service_cost(state: GameState) -> float:
+	return 25.0 + 60.0 * state.production_per_second * (1.0 - clampf(state.machine_condition, 0.0, 1.0))
+
+static func warehouse_space(state: GameState) -> float:
+	return maxf(0.0, state.warehouse_capacity - state.battery_cells)
+
 static func upgrade_cost(definition: Dictionary, level: int) -> float:
 	var base_cost: float = float(definition.get("base_cost", 1.0))
 	var cost_scale: float = float(definition.get("cost_scale", 1.5))

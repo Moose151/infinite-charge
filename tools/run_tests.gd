@@ -12,6 +12,10 @@ func _init() -> void:
 	_test_material_buying()
 	_test_upgrades()
 	_test_advance()
+	_test_warehouse_capacity()
+	_test_maintenance()
+	_test_lost_sales()
+	_test_chunked_advance()
 	_test_downtime()
 	_test_offline_advance_has_no_security_events()
 	_test_security_event_effects()
@@ -111,7 +115,8 @@ func _test_advance() -> void:
 	var simulation: Simulation = _make_sim()
 	state.cash = 0.0
 	state.raw_materials = 100.0
-	state.battery_cells = 100.0
+	state.battery_cells = 30.0
+	state.warehouse_capacity = 200.0
 	state.production_per_second = 2.0
 	state.sale_price = 4.0
 	var report: Dictionary = simulation.advance(state, 1.0, false)
@@ -120,6 +125,75 @@ func _test_advance() -> void:
 	_check(float(report["cells_sold"]) > 0.0, "advance sells cells")
 	_check(state.cash > 0.0, "advance earns revenue")
 	_check(is_equal_approx(float(report["revenue"]), float(report["cells_sold"]) * 4.0), "revenue matches sales")
+
+func _test_warehouse_capacity() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.raw_materials = 100.0
+	state.battery_cells = 59.0
+	state.warehouse_capacity = 60.0
+	state.production_per_second = 10.0
+	state.awareness = 0.0
+	simulation.advance(state, 1.0, false)
+	_check(is_equal_approx(state.battery_cells, 60.0), "automation stops at warehouse capacity")
+	_check(is_equal_approx(state.raw_materials, 99.0), "materials not consumed past capacity")
+
+	state.manual_output = 2.0
+	_check(not simulation.manual_produce(state), "manual production blocked at capacity")
+
+	var upgraded: GameState = GameState.new()
+	simulation.buy_upgrade(upgraded, {"id": "shelves", "base_cost": 0.0, "max_level": 1, "effects": {"warehouse_capacity_add": 60.0}})
+	_check(is_equal_approx(upgraded.warehouse_capacity, 120.0), "shelving upgrade raises capacity")
+
+func _test_maintenance() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.raw_materials = 10000.0
+	state.warehouse_capacity = 100000.0
+	state.production_per_second = 10.0
+	state.awareness = 0.0
+	simulation.advance(state, 60.0, false)
+	_check(state.machine_condition < 1.0, "automated production wears machines")
+
+	state.machine_condition = 0.0
+	var worn_report: Dictionary = simulation.advance(state, 1.0, false)
+	_check(is_equal_approx(float(worn_report["cells_made"]), 4.0), "worn machines run at 40% efficiency")
+
+	state.cash = 1000.0
+	_check(simulation.service_machines(state), "servicing succeeds with cash")
+	_check(is_equal_approx(state.machine_condition, 1.0), "servicing restores condition")
+	_check(state.cash < 1000.0, "servicing costs cash")
+	_check(not simulation.service_machines(state), "servicing refused when not needed")
+
+	state.machine_condition = 0.5
+	state.cash = 0.0
+	_check(not simulation.service_machines(state), "servicing refused when broke")
+
+	state.wear_reduction = 0.8
+	var reduced_wear: float = Formulas.wear_per_cell(state)
+	state.wear_reduction = 0.0
+	_check(reduced_wear < Formulas.wear_per_cell(state), "wear reduction lowers wear")
+
+func _test_lost_sales() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.battery_cells = 0.0
+	state.raw_materials = 0.0
+	state.cash = 100.0
+	simulation.advance(state, 10.0, false)
+	_check(state.lifetime_sales_lost > 0.0, "stock-outs recorded as lost sales")
+
+func _test_chunked_advance() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.raw_materials = 100000.0
+	state.warehouse_capacity = 60.0
+	state.production_per_second = 5.0
+	state.sale_price = 1.0
+	state.awareness = 5.0
+	var report: Dictionary = simulation.advance_chunked(state, 3600.0, false)
+	_check(float(report["cells_sold"]) > state.warehouse_capacity * 2.0, "chunked offline sales exceed warehouse capacity")
+	_check(is_equal_approx(float(report["seconds"]), 3600.0), "chunked report tracks duration")
 
 func _test_downtime() -> void:
 	var state: GameState = GameState.new()
@@ -190,6 +264,10 @@ func _test_save_round_trip() -> void:
 	state.production_per_second = 1.25
 	state.production_downtime = 4.0
 	state.ui_scale = 1.5
+	state.warehouse_capacity = 240.0
+	state.machine_condition = 0.75
+	state.wear_reduction = 0.2
+	state.lifetime_sales_lost = 42.0
 	state.upgrade_levels = {"better_tools": 2}
 	state.lifetime_revenue = 999.0
 	state.add_event("Round trip initiated.")
@@ -205,6 +283,10 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.sale_price, 5.5), "price restored")
 	_check(is_equal_approx(loaded.production_downtime, 4.0), "downtime restored")
 	_check(is_equal_approx(loaded.ui_scale, 1.5), "ui scale restored")
+	_check(is_equal_approx(loaded.warehouse_capacity, 240.0), "warehouse capacity restored")
+	_check(is_equal_approx(loaded.machine_condition, 0.75), "machine condition restored")
+	_check(is_equal_approx(loaded.wear_reduction, 0.2), "wear reduction restored")
+	_check(is_equal_approx(loaded.lifetime_sales_lost, 42.0), "lost sales restored")
 	_check(int(loaded.upgrade_levels.get("better_tools", 0)) == 2, "upgrade levels restored")
 	_check(is_equal_approx(loaded.lifetime_revenue, 999.0), "stats restored")
 	_check(loaded.event_log.size() > 0 and loaded.event_log[0] == "Round trip initiated.", "event log restored")

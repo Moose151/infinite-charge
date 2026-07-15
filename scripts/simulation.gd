@@ -52,15 +52,23 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		uptime = maxf(0.0, delta - state.production_downtime)
 		state.production_downtime = maxf(0.0, state.production_downtime - delta)
 
-	var automated_cells: float = minf(state.raw_materials, state.production_per_second * uptime)
+	var space: float = Formulas.warehouse_space(state)
+	var automated_target: float = state.production_per_second * Formulas.machine_efficiency(state) * uptime
+	var automated_cells: float = minf(minf(state.raw_materials, space), automated_target)
 	if automated_cells > 0.0:
 		state.raw_materials -= automated_cells
 		state.battery_cells += automated_cells
 		state.lifetime_cells_made += automated_cells
+		state.machine_condition = maxf(0.0, state.machine_condition - automated_cells * Formulas.wear_per_cell(state))
 		report["cells_made"] = automated_cells
 		report["materials_consumed"] = automated_cells
+	elif allow_events and automated_target > 0.0 and space <= 0.0 and state.raw_materials > 0.0:
+		if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
+			state.add_event("Warehouse full. Automation is stacking cells vertically and hoping.")
 
-	var sellable_cells: float = minf(state.battery_cells, state.demand_per_second * delta)
+	var demanded_cells: float = state.demand_per_second * delta
+	var sellable_cells: float = minf(state.battery_cells, demanded_cells)
+	state.lifetime_sales_lost += maxf(0.0, demanded_cells - sellable_cells)
 	if sellable_cells > 0.0:
 		var revenue: float = sellable_cells * state.sale_price
 		state.battery_cells -= sellable_cells
@@ -88,10 +96,38 @@ func _check_bankruptcy_rescue(state: GameState, allow_events: bool) -> void:
 	if allow_events:
 		state.add_event("A concerned relative has invested $25. The board thanks them and requests they stop attending meetings.")
 
+func advance_chunked(state: GameState, total_seconds: float, allow_events: bool = false, chunk_seconds: float = 30.0) -> Dictionary:
+	# Long spans (offline progress) must be stepped so production and sales
+	# interleave; a single step would cap output at warehouse capacity.
+	var aggregate: Dictionary = {
+		"seconds": total_seconds,
+		"cells_made": 0.0,
+		"cells_sold": 0.0,
+		"revenue": 0.0,
+		"materials_consumed": 0.0,
+		"security_losses": 0.0,
+		"market_events": 0,
+		"security_events": 0,
+	}
+	var remaining: float = total_seconds
+	while remaining > 0.0:
+		var step: float = minf(chunk_seconds, remaining)
+		remaining -= step
+		var report: Dictionary = advance(state, step, allow_events)
+		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses"]:
+			aggregate[key] = float(aggregate[key]) + float(report[key])
+		for key: String in ["market_events", "security_events"]:
+			aggregate[key] = int(aggregate[key]) + int(report[key])
+	return aggregate
+
 func manual_produce(state: GameState) -> bool:
 	if state.raw_materials < state.manual_output:
 		if state.event_log.is_empty() or not state.event_log[0].begins_with("Production paused"):
 			state.add_event("Production paused: materials are currently represented by an empty shelf.")
+		return false
+	if state.battery_cells + state.manual_output > state.warehouse_capacity:
+		if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
+			state.add_event("Warehouse full. The next cell would legally be furniture.")
 		return false
 	state.raw_materials -= state.manual_output
 	state.battery_cells += state.manual_output
@@ -108,6 +144,18 @@ func buy_materials(state: GameState, quantity: float) -> bool:
 	state.raw_materials += quantity
 	state.lifetime_materials_bought += quantity
 	state.add_event("Purchased %s material units for $%s." % [Formulas.format_number(quantity), Formulas.format_number(cost)])
+	return true
+
+func service_machines(state: GameState) -> bool:
+	if state.production_per_second <= 0.0 or state.machine_condition >= 0.995:
+		return false
+	var cost: float = Formulas.service_cost(state)
+	if state.cash < cost:
+		state.add_event("Servicing postponed: the machines will continue to make that noise.")
+		return false
+	state.cash -= cost
+	state.machine_condition = 1.0
+	state.add_event("Machines serviced for $%s. The grinding sound has been reclassified as a memory." % Formulas.format_number(cost))
 	return true
 
 func buy_upgrade(state: GameState, definition: Dictionary) -> bool:
@@ -138,6 +186,8 @@ func _apply_upgrade_effects(state: GameState, definition: Dictionary) -> void:
 	state.risk_reduction += float(effects.get("risk_reduction_add", 0.0))
 	state.recovery += float(effects.get("recovery_add", 0.0))
 	state.trust += float(effects.get("trust_add", 0.0))
+	state.warehouse_capacity += float(effects.get("warehouse_capacity_add", 0.0))
+	state.wear_reduction += float(effects.get("wear_reduction_add", 0.0))
 
 func _update_material_market(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
 	state.material_market_timer += delta

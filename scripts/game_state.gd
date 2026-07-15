@@ -17,6 +17,9 @@ var material_market_timer: float = 0.0
 
 var manual_output: float = 1.0
 var production_per_second: float = 0.0
+var warehouse_capacity: float = 60.0
+var machine_condition: float = 1.0
+var wear_reduction: float = 0.0
 var awareness: float = 1.0
 var quality: float = 1.0
 var base_value: float = 4.0
@@ -36,6 +39,7 @@ var lifetime_cells_sold: float = 0.0
 var lifetime_revenue: float = 0.0
 var lifetime_materials_bought: float = 0.0
 var lifetime_security_losses: float = 0.0
+var lifetime_sales_lost: float = 0.0
 var seconds_played: float = 0.0
 
 var simulation_paused: bool = false
@@ -69,6 +73,9 @@ func to_save_data() -> Dictionary:
 		"material_market_timer": material_market_timer,
 		"manual_output": manual_output,
 		"production_per_second": production_per_second,
+		"warehouse_capacity": warehouse_capacity,
+		"machine_condition": machine_condition,
+		"wear_reduction": wear_reduction,
 		"awareness": awareness,
 		"quality": quality,
 		"base_value": base_value,
@@ -86,6 +93,7 @@ func to_save_data() -> Dictionary:
 		"lifetime_revenue": lifetime_revenue,
 		"lifetime_materials_bought": lifetime_materials_bought,
 		"lifetime_security_losses": lifetime_security_losses,
+		"lifetime_sales_lost": lifetime_sales_lost,
 		"seconds_played": seconds_played,
 		"simulation_paused": simulation_paused,
 		"simulation_speed": simulation_speed,
@@ -107,6 +115,9 @@ func load_save_data(data: Dictionary) -> void:
 	material_market_timer = float(data.get("material_market_timer", material_market_timer))
 	manual_output = float(data.get("manual_output", manual_output))
 	production_per_second = float(data.get("production_per_second", production_per_second))
+	warehouse_capacity = float(data.get("warehouse_capacity", warehouse_capacity))
+	machine_condition = float(data.get("machine_condition", machine_condition))
+	wear_reduction = float(data.get("wear_reduction", wear_reduction))
 	awareness = float(data.get("awareness", awareness))
 	quality = float(data.get("quality", quality))
 	base_value = float(data.get("base_value", base_value))
@@ -124,6 +135,7 @@ func load_save_data(data: Dictionary) -> void:
 	lifetime_revenue = float(data.get("lifetime_revenue", lifetime_revenue))
 	lifetime_materials_bought = float(data.get("lifetime_materials_bought", lifetime_materials_bought))
 	lifetime_security_losses = float(data.get("lifetime_security_losses", lifetime_security_losses))
+	lifetime_sales_lost = float(data.get("lifetime_sales_lost", lifetime_sales_lost))
 	seconds_played = float(data.get("seconds_played", seconds_played))
 	simulation_paused = bool(data.get("simulation_paused", simulation_paused))
 	simulation_speed = float(data.get("simulation_speed", simulation_speed))

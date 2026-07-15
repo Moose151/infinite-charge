@@ -57,6 +57,28 @@
     }
   },
   {
+    "id": "garage_shelving",
+    "name": "Garage Shelving",
+    "description": "Vertical storage has been approved by gravity, conditionally.",
+    "base_cost": 80.0,
+    "cost_scale": 1.6,
+    "max_level": 8,
+    "effects": {
+      "warehouse_capacity_add": 60.0
+    }
+  },
+  {
+    "id": "preventive_maintenance",
+    "name": "Preventive Maintenance",
+    "description": "The machines are now complimented on a fixed schedule.",
+    "base_cost": 180.0,
+    "cost_scale": 1.7,
+    "max_level": 4,
+    "effects": {
+      "wear_reduction_add": 0.2
+    }
+  },
+  {
     "id": "online_storefront",
     "name": "Online Storefront",
     "description": "The company is now discoverable by customers and, regrettably, by everyone else.",
