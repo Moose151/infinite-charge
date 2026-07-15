@@ -35,10 +35,10 @@ var accept_contract_button: Button
 var decline_contract_button: Button
 var staff_labels: Dictionary = {}
 var wage_label: Label
-var middle_pages: Dictionary = {}
-var middle_nav_buttons: Dictionary = {}
-var right_pages: Dictionary = {}
-var right_nav_buttons: Dictionary = {}
+var inventory_bar: ProgressBar
+var risk_bar: ProgressBar
+var quality_bar: ProgressBar
+var condition_bar: ProgressBar
 
 const UI_SCALES: Array[float] = [1.0]
 
@@ -100,9 +100,9 @@ func _build_ui() -> void:
 	body.add_theme_constant_override("separation", 12)
 	main.add_child(body)
 
-	var left_panel: PanelContainer = _make_panel("Company")
-	var middle_panel: PanelContainer = _make_panel("Production & Market")
-	var right_panel: PanelContainer = _make_panel("Upgrades & Events")
+	var left_panel: PanelContainer = _make_panel("Workshop")
+	var middle_panel: PanelContainer = _make_panel("Company Floor")
+	var right_panel: PanelContainer = _make_panel("Growth & Log")
 	body.add_child(left_panel)
 	body.add_child(middle_panel)
 	body.add_child(right_panel)
@@ -111,95 +111,61 @@ func _build_ui() -> void:
 	var middle: VBoxContainer = middle_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var right: VBoxContainer = right_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 
-	_add_section_heading(left, "Resources")
-	cash_label = _add_label(left)
-	materials_label = _add_label(left)
-	inventory_label = _add_label(left)
-	material_price_label = _add_label(left)
-	risk_label = _add_label(left)
-
-	_add_section_heading(left, "Statistics")
-	stats_label = _add_label(left)
-
-	_add_section_heading(left, "Contracts")
-
-	contract_label = _add_label(left)
-
-	var contract_buttons: HBoxContainer = HBoxContainer.new()
-	contract_buttons.add_theme_constant_override("separation", 8)
-	left.add_child(contract_buttons)
-
-	accept_contract_button = Button.new()
-	accept_contract_button.text = "Accept"
-	accept_contract_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	accept_contract_button.pressed.connect(func() -> void: simulation.accept_contract(state))
-	contract_buttons.add_child(accept_contract_button)
-
-	decline_contract_button = Button.new()
-	decline_contract_button.text = "Decline"
-	decline_contract_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	decline_contract_button.pressed.connect(func() -> void: simulation.decline_contract(state))
-	contract_buttons.add_child(decline_contract_button)
-	offline_report_label = RichTextLabel.new()
-	offline_report_label.fit_content = true
-	offline_report_label.scroll_active = false
-	offline_report_label.bbcode_enabled = true
-	left.add_child(offline_report_label)
-
-	_add_section_heading(middle, "Actions")
+	var workshop_card: VBoxContainer = _make_card(left, "Build Cells")
 	var produce_button: Button = Button.new()
 	produce_button.text = "Assemble Cell"
+	produce_button.custom_minimum_size = Vector2(0.0, 54.0)
+	produce_button.add_theme_font_size_override("font_size", 20)
 	produce_button.pressed.connect(func() -> void: simulation.manual_produce(state))
-	middle.add_child(produce_button)
+	workshop_card.add_child(produce_button)
 
 	var buy_row: HBoxContainer = HBoxContainer.new()
 	buy_row.add_theme_constant_override("separation", 8)
-	middle.add_child(buy_row)
+	workshop_card.add_child(buy_row)
 	for quantity: float in [1.0, 10.0, 100.0]:
 		var buy_button: Button = Button.new()
-		buy_button.text = "Buy %d Material%s" % [int(quantity), "" if quantity == 1.0 else "s"]
+		buy_button.text = "Buy %d" % int(quantity)
+		buy_button.tooltip_text = "Buy %d raw material%s." % [int(quantity), "" if quantity == 1.0 else "s"]
 		buy_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		buy_button.pressed.connect(func() -> void: simulation.buy_materials(state, quantity))
 		buy_row.add_child(buy_button)
 
-	price_label = _add_label(middle)
+	var price_card: VBoxContainer = _make_card(left, "Price Desk")
+	price_label = _add_label(price_card)
 	price_slider = HSlider.new()
 	price_slider.min_value = 1.0
 	price_slider.max_value = 20.0
 	price_slider.step = 0.1
 	price_slider.value_changed.connect(_on_price_changed)
-	middle.add_child(price_slider)
+	price_card.add_child(price_slider)
+	demand_label = _add_label(price_card)
+	sales_label = _add_label(price_card)
+	market_label = _add_label(price_card)
 
-	var middle_nav: HBoxContainer = HBoxContainer.new()
-	middle_nav.add_theme_constant_override("separation", 8)
-	middle.add_child(middle_nav)
+	var resources_card: VBoxContainer = _make_card(left, "Stockroom")
+	cash_label = _add_label(resources_card)
+	materials_label = _add_label(resources_card)
+	inventory_label = _add_label(resources_card)
+	inventory_bar = _add_meter(resources_card)
+	material_price_label = _add_label(resources_card)
+	risk_label = _add_label(resources_card)
+	risk_bar = _add_meter(resources_card)
 
-	var operations_page: VBoxContainer = _add_page(middle, "operations", middle_pages)
-	var staff_page: VBoxContainer = _add_page(middle, "staff", middle_pages)
-	var settings_page: VBoxContainer = _add_page(middle, "settings", middle_pages)
-	_add_view_button(middle_nav, "Operations", "operations", middle_pages, middle_nav_buttons)
-	_add_view_button(middle_nav, "Staff", "staff", middle_pages, middle_nav_buttons)
-	_add_view_button(middle_nav, "Settings", "settings", middle_pages, middle_nav_buttons)
-
-	_add_section_heading(operations_page, "Market")
-	demand_label = _add_label(operations_page)
-	sales_label = _add_label(operations_page)
-	market_label = _add_label(operations_page)
-
-	_add_section_heading(operations_page, "Production")
-	production_label = _add_label(operations_page)
-	quality_label = _add_label(operations_page)
-
-	condition_label = _add_label(operations_page)
+	var production_card: VBoxContainer = _make_card(middle, "Production Line")
+	production_label = _add_label(production_card)
+	quality_label = _add_label(production_card)
+	quality_bar = _add_meter(production_card)
+	condition_label = _add_label(production_card)
+	condition_bar = _add_meter(production_card)
 	service_button = Button.new()
 	service_button.pressed.connect(func() -> void: simulation.service_machines(state))
-	operations_page.add_child(service_button)
+	production_card.add_child(service_button)
 
-	_add_section_heading(staff_page, "Stage Staff")
+	var staff_card: VBoxContainer = _make_card(middle, "Crew")
 	for role: String in ["prep", "assembly", "testing"]:
 		var staff_row: HBoxContainer = HBoxContainer.new()
 		staff_row.add_theme_constant_override("separation", 8)
-		staff_page.add_child(staff_row)
+		staff_card.add_child(staff_row)
 
 		var staff_label: Label = Label.new()
 		staff_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -216,17 +182,42 @@ func _build_ui() -> void:
 		fire_button.pressed.connect(func() -> void: simulation.fire_worker(state, role))
 		staff_row.add_child(fire_button)
 
-	wage_label = _add_label(staff_page)
+	wage_label = _add_label(staff_card)
 
-	_add_section_heading(settings_page, "Simulation")
+	var contracts_card: VBoxContainer = _make_card(middle, "Contracts")
+	contract_label = _add_label(contracts_card)
+
+	var contract_buttons: HBoxContainer = HBoxContainer.new()
+	contract_buttons.add_theme_constant_override("separation", 8)
+	contracts_card.add_child(contract_buttons)
+
+	accept_contract_button = Button.new()
+	accept_contract_button.text = "Accept"
+	accept_contract_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	accept_contract_button.pressed.connect(func() -> void: simulation.accept_contract(state))
+	contract_buttons.add_child(accept_contract_button)
+
+	decline_contract_button = Button.new()
+	decline_contract_button.text = "Decline"
+	decline_contract_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	decline_contract_button.pressed.connect(func() -> void: simulation.decline_contract(state))
+	contract_buttons.add_child(decline_contract_button)
+
+	offline_report_label = RichTextLabel.new()
+	offline_report_label.fit_content = true
+	offline_report_label.scroll_active = false
+	offline_report_label.bbcode_enabled = true
+	contracts_card.add_child(offline_report_label)
+
+	var controls_card: VBoxContainer = _make_card(middle, "Run Controls")
 	pause_button = CheckButton.new()
 	pause_button.text = "Pause simulation"
 	pause_button.toggled.connect(_on_pause_toggled)
-	settings_page.add_child(pause_button)
+	controls_card.add_child(pause_button)
 
 	var speed_row: HBoxContainer = HBoxContainer.new()
 	speed_row.add_theme_constant_override("separation", 8)
-	settings_page.add_child(speed_row)
+	controls_card.add_child(speed_row)
 
 	var speed_label: Label = Label.new()
 	speed_label.text = "Speed"
@@ -240,10 +231,9 @@ func _build_ui() -> void:
 	speed_option.item_selected.connect(_on_speed_selected)
 	speed_row.add_child(speed_option)
 
-	_add_section_heading(settings_page, "Saving")
 	var autosave_row: HBoxContainer = HBoxContainer.new()
 	autosave_row.add_theme_constant_override("separation", 8)
-	settings_page.add_child(autosave_row)
+	controls_card.add_child(autosave_row)
 
 	var autosave_label: Label = Label.new()
 	autosave_label.text = "Autosave seconds"
@@ -258,7 +248,7 @@ func _build_ui() -> void:
 
 	var scale_row: HBoxContainer = HBoxContainer.new()
 	scale_row.add_theme_constant_override("separation", 8)
-	settings_page.add_child(scale_row)
+	controls_card.add_child(scale_row)
 
 	var scale_label: Label = Label.new()
 	scale_label.text = "Interface scale"
@@ -272,7 +262,7 @@ func _build_ui() -> void:
 
 	var offline_row: HBoxContainer = HBoxContainer.new()
 	offline_row.add_theme_constant_override("separation", 8)
-	settings_page.add_child(offline_row)
+	controls_card.add_child(offline_row)
 
 	var offline_label: Label = Label.new()
 	offline_label.text = "Offline hours"
@@ -288,22 +278,12 @@ func _build_ui() -> void:
 	var save_button: Button = Button.new()
 	save_button.text = "Manual Save"
 	save_button.pressed.connect(_manual_save)
-	settings_page.add_child(save_button)
-	_show_view(middle_pages, middle_nav_buttons, "operations")
+	controls_card.add_child(save_button)
 
-	var right_nav: HBoxContainer = HBoxContainer.new()
-	right_nav.add_theme_constant_override("separation", 8)
-	right.add_child(right_nav)
-
-	var upgrades_page: VBoxContainer = _add_page(right, "upgrades", right_pages)
-	var events_page: VBoxContainer = _add_page(right, "events", right_pages)
-	_add_view_button(right_nav, "Upgrades", "upgrades", right_pages, right_nav_buttons)
-	_add_view_button(right_nav, "Event Log", "events", right_pages, right_nav_buttons)
-
-	_add_section_heading(upgrades_page, "Upgrades")
+	var upgrade_card: VBoxContainer = _make_card(right, "Upgrades")
 	var upgrade_list: VBoxContainer = VBoxContainer.new()
 	upgrade_list.add_theme_constant_override("separation", 6)
-	upgrades_page.add_child(upgrade_list)
+	upgrade_card.add_child(upgrade_list)
 	for definition: Dictionary in upgrades:
 		var button: Button = Button.new()
 		button.text = str(definition.get("name", "Upgrade"))
@@ -312,13 +292,15 @@ func _build_ui() -> void:
 		upgrade_buttons[str(definition.get("id", ""))] = button
 		upgrade_list.add_child(button)
 
-	_add_section_heading(events_page, "Event Log")
+	var log_card: VBoxContainer = _make_card(right, "Company Log")
 	event_log_label = RichTextLabel.new()
-	event_log_label.custom_minimum_size = Vector2(0.0, 360.0)
+	event_log_label.custom_minimum_size = Vector2(0.0, 220.0)
 	event_log_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	event_log_label.bbcode_enabled = true
-	events_page.add_child(event_log_label)
-	_show_view(right_pages, right_nav_buttons, "upgrades")
+	log_card.add_child(event_log_label)
+
+	var stats_card: VBoxContainer = _make_card(right, "Ledger")
+	stats_label = _add_label(stats_card)
 
 func _make_panel(title: String) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
@@ -364,35 +346,46 @@ func _make_panel(title: String) -> PanelContainer:
 
 	return panel
 
-func _add_page(parent: Control, key: String, pages: Dictionary) -> VBoxContainer:
+func _make_card(parent: Control, title: String) -> VBoxContainer:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.115, 0.14, 0.155)
+	style.border_color = Color(0.24, 0.32, 0.35)
+	style.set_border_width_all(1)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	panel.add_theme_stylebox_override("panel", style)
+	parent.add_child(panel)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_top", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_bottom", 10)
+	panel.add_child(margin)
+
 	var box: VBoxContainer = VBoxContainer.new()
-	box.name = key.capitalize()
-	box.add_theme_constant_override("separation", 8)
+	box.add_theme_constant_override("separation", 7)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.visible = false
-	pages[key] = box
-	parent.add_child(box)
+	margin.add_child(box)
+
+	var heading: Label = Label.new()
+	heading.text = title
+	heading.add_theme_font_size_override("font_size", 16)
+	heading.add_theme_color_override("font_color", Color(0.95, 0.94, 0.84))
+	box.add_child(heading)
 	return box
 
-func _add_view_button(parent: Control, text: String, key: String, pages: Dictionary, buttons: Dictionary) -> Button:
-	var button: Button = Button.new()
-	button.text = text
-	button.toggle_mode = true
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button.pressed.connect(func() -> void: _show_view(pages, buttons, key))
-	buttons[key] = button
-	parent.add_child(button)
-	return button
-
-func _show_view(pages: Dictionary, buttons: Dictionary, selected_key: String) -> void:
-	for key: String in pages:
-		var page: Control = pages[key] as Control
-		if page != null:
-			page.visible = key == selected_key
-	for key: String in buttons:
-		var button: Button = buttons[key] as Button
-		if button != null:
-			button.set_pressed_no_signal(key == selected_key)
+func _add_meter(parent: Control) -> ProgressBar:
+	var meter: ProgressBar = ProgressBar.new()
+	meter.show_percentage = false
+	meter.custom_minimum_size = Vector2(0.0, 8.0)
+	meter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(meter)
+	return meter
 
 func _add_section_heading(parent: Control, text: String) -> Label:
 	var heading: Label = Label.new()
@@ -473,6 +466,8 @@ func _refresh_ui() -> void:
 		Formulas.format_number(state.warehouse_capacity),
 		Formulas.format_number(state.battery_cells * state.sale_price)
 	]
+	inventory_bar.max_value = maxf(1.0, state.warehouse_capacity)
+	inventory_bar.value = clampf(state.battery_cells, 0.0, inventory_bar.max_value)
 	material_price_label.text = "Material price: $%s/unit" % Formulas.format_number(Formulas.material_unit_cost(state))
 	var operations_risk: float = maxf(0.0, state.risk - 0.06)
 	risk_label.text = "Security risk: %d%% (base 6%% + operations %d%% - defenses %d%%)" % [
@@ -480,6 +475,8 @@ func _refresh_ui() -> void:
 		roundi(operations_risk * 100.0),
 		roundi(state.risk_reduction * 100.0)
 	]
+	risk_bar.max_value = 100.0
+	risk_bar.value = Formulas.effective_risk(state) * 100.0
 	stats_label.text = "Lifetime made: %s cells\nLifetime sold: %s cells\nLifetime revenue: $%s\nMaterials bought: %s\nSecurity losses: $%s\nSales lost to stock-outs: %s cells\nEnergy paid: $%s | Wages paid: $%s\nTime operated: %s" % [
 		Formulas.format_number(state.lifetime_cells_made),
 		Formulas.format_number(state.lifetime_cells_sold),
@@ -519,6 +516,8 @@ func _refresh_ui() -> void:
 		roundi((0.8 + 0.2 * clampf(state.machine_condition, 0.0, 1.0)) * 100.0),
 		roundi(Formulas.testing_coverage(state) * 100.0)
 	]
+	quality_bar.max_value = 150.0
+	quality_bar.value = clampf(Formulas.effective_quality(state) * 100.0, 0.0, quality_bar.max_value)
 	_update_maintenance_row()
 	_update_contracts_section()
 	_update_staff_section()
@@ -536,14 +535,18 @@ func _refresh_ui() -> void:
 func _update_maintenance_row() -> void:
 	if state.production_per_second <= 0.0:
 		condition_label.visible = false
+		condition_bar.visible = false
 		service_button.visible = false
 		return
 	condition_label.visible = true
+	condition_bar.visible = true
 	service_button.visible = true
 	condition_label.text = "Machine condition: %d%% (efficiency %d%%)" % [
 		roundi(state.machine_condition * 100.0),
 		roundi(Formulas.machine_efficiency(state) * 100.0)
 	]
+	condition_bar.max_value = 100.0
+	condition_bar.value = state.machine_condition * 100.0
 	var cost: float = Formulas.service_cost(state)
 	if state.machine_condition >= 0.995:
 		service_button.text = "Service Machines (not needed)"

@@ -4,6 +4,15 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.6.5 — 2026-07-15
+
+First-screen flow pass.
+
+- Reworked the screen around always-visible Workshop, Company Floor, and Growth & Log columns instead of hidden section navigation.
+- Moved manual assembly, material buying, price, stock, production, staff, contracts, upgrades, log, and ledger into visible grouped areas.
+- Added small live meters for inventory, security risk, product quality, and machine condition.
+- Updated the handover with the future direction for a visible workshop that changes with upgrades and cosmetics.
+
 ## 0.6.4 — 2026-07-15
 
 Navigation clarity fix.

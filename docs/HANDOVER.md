@@ -78,7 +78,7 @@ The player can:
 
 ## Known Limitations
 
-- The UI is functional placeholder work, not final presentation.
+- The UI is still an early code-built presentation. Recent passes made it more playable, but the desired long-term direction is a visible workshop/factory view that changes as the player upgrades: better benches, shelves, machines, staff presence, security hardware, cosmetic unlocks, and eventually richer factory/company spaces.
 - Balance is harness-tested but not yet human-playtested; the bot cannot judge feel.
 - Save migration exists only as a version field, not a real migration pipeline.
 - Settings (speed, autosave, offline limit, interface scale) live inline in the middle panel rather than a dedicated settings screen, and are stored in the save file rather than a separate config.
@@ -86,9 +86,10 @@ The player can:
 
 ## Recommended Next Steps
 
-1. Human-playtest the full loop now that Milestone One is complete — the middle panel is getting dense and may want tabs or collapsible sections before Milestone Two adds more.
+1. Human-playtest the full loop now that Milestone One is complete. Prioritize feel: the first screen should make the garage satisfying to operate before Milestone Two adds more market depth.
 2. Begin Milestone Two (Market Depth): customer segments first (different price/quality sensitivities give pricing more texture), then a second product tier.
-3. Consider surfacing wear rate and time-to-empty-warehouse estimates now that production stages add complexity.
+3. Plan a visual workshop layer: show the current garage, then let upgrades visibly add equipment, automation, storage, staff, security controls, and optional cosmetics.
+4. Consider surfacing wear rate and time-to-empty-warehouse estimates now that production stages add complexity.
 
 ## Balance Changes (2026-07-15)
 
