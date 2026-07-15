@@ -22,6 +22,11 @@ var testing_rate: float = 0.5
 var warehouse_capacity: float = 60.0
 var machine_condition: float = 1.0
 var wear_reduction: float = 0.0
+var energy_price: float = 0.12
+var energy_discount: float = 0.0
+var energy_market_timer: float = 0.0
+var workers: Dictionary = {"prep": 0, "assembly": 0, "testing": 0}
+var staff_striking: bool = false
 var awareness: float = 1.0
 var quality: float = 1.0
 var base_value: float = 4.0
@@ -42,6 +47,8 @@ var lifetime_revenue: float = 0.0
 var lifetime_materials_bought: float = 0.0
 var lifetime_security_losses: float = 0.0
 var lifetime_sales_lost: float = 0.0
+var lifetime_energy_cost: float = 0.0
+var lifetime_wages_paid: float = 0.0
 var seconds_played: float = 0.0
 
 var simulation_paused: bool = false
@@ -87,6 +94,11 @@ func to_save_data() -> Dictionary:
 		"warehouse_capacity": warehouse_capacity,
 		"machine_condition": machine_condition,
 		"wear_reduction": wear_reduction,
+		"energy_price": energy_price,
+		"energy_discount": energy_discount,
+		"energy_market_timer": energy_market_timer,
+		"workers": workers,
+		"staff_striking": staff_striking,
 		"awareness": awareness,
 		"quality": quality,
 		"base_value": base_value,
@@ -105,6 +117,8 @@ func to_save_data() -> Dictionary:
 		"lifetime_materials_bought": lifetime_materials_bought,
 		"lifetime_security_losses": lifetime_security_losses,
 		"lifetime_sales_lost": lifetime_sales_lost,
+		"lifetime_energy_cost": lifetime_energy_cost,
+		"lifetime_wages_paid": lifetime_wages_paid,
 		"seconds_played": seconds_played,
 		"simulation_paused": simulation_paused,
 		"simulation_speed": simulation_speed,
@@ -137,6 +151,13 @@ func load_save_data(data: Dictionary) -> void:
 	warehouse_capacity = float(data.get("warehouse_capacity", warehouse_capacity))
 	machine_condition = float(data.get("machine_condition", machine_condition))
 	wear_reduction = float(data.get("wear_reduction", wear_reduction))
+	energy_price = float(data.get("energy_price", energy_price))
+	energy_discount = float(data.get("energy_discount", energy_discount))
+	energy_market_timer = float(data.get("energy_market_timer", energy_market_timer))
+	var loaded_workers: Dictionary = data.get("workers", {})
+	for role: String in ["prep", "assembly", "testing"]:
+		workers[role] = int(loaded_workers.get(role, 0))
+	staff_striking = bool(data.get("staff_striking", staff_striking))
 	awareness = float(data.get("awareness", awareness))
 	quality = float(data.get("quality", quality))
 	base_value = float(data.get("base_value", base_value))
@@ -155,6 +176,8 @@ func load_save_data(data: Dictionary) -> void:
 	lifetime_materials_bought = float(data.get("lifetime_materials_bought", lifetime_materials_bought))
 	lifetime_security_losses = float(data.get("lifetime_security_losses", lifetime_security_losses))
 	lifetime_sales_lost = float(data.get("lifetime_sales_lost", lifetime_sales_lost))
+	lifetime_energy_cost = float(data.get("lifetime_energy_cost", lifetime_energy_cost))
+	lifetime_wages_paid = float(data.get("lifetime_wages_paid", lifetime_wages_paid))
 	seconds_played = float(data.get("seconds_played", seconds_played))
 	simulation_paused = bool(data.get("simulation_paused", simulation_paused))
 	simulation_speed = float(data.get("simulation_speed", simulation_speed))

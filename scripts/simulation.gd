@@ -51,9 +51,13 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		"revenue": 0.0,
 		"materials_consumed": 0.0,
 		"security_losses": 0.0,
+		"energy_cost": 0.0,
+		"wages_paid": 0.0,
 		"market_events": 0,
 		"security_events": 0,
 	}
+
+	_pay_wages(state, delta, allow_events, report)
 
 	state.seconds_played += delta
 	state.demand_per_second = Formulas.demand_per_second(state)
@@ -71,6 +75,10 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		state.battery_cells += automated_cells
 		state.lifetime_cells_made += automated_cells
 		state.machine_condition = maxf(0.0, state.machine_condition - automated_cells * Formulas.wear_per_cell(state))
+		var energy_cost: float = minf(automated_cells * Formulas.energy_cost_per_cell(state), state.cash)
+		state.cash -= energy_cost
+		state.lifetime_energy_cost += energy_cost
+		report["energy_cost"] = energy_cost
 		report["cells_made"] = automated_cells
 		report["materials_consumed"] = automated_cells
 	elif allow_events and automated_target > 0.0 and space <= 0.0 and state.raw_materials > 0.0:
@@ -96,6 +104,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		state.sales_per_second = 0.0
 
 	_update_material_market(state, delta, allow_events, report)
+	_update_energy_market(state, delta, allow_events)
 	_update_security_events(state, delta, allow_events, report)
 	_check_bankruptcy_rescue(state, allow_events)
 	state.notify_changed()
@@ -159,6 +168,55 @@ func buy_materials(state: GameState, quantity: float) -> bool:
 	state.lifetime_materials_bought += quantity
 	state.add_event("Purchased %s material units for $%s." % [Formulas.format_number(quantity), Formulas.format_number(cost)])
 	return true
+
+func _pay_wages(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
+	var worker_count: int = Formulas.total_workers(state)
+	if worker_count == 0:
+		state.staff_striking = false
+		return
+	var due: float = worker_count * Formulas.WORKER_WAGE_PER_SECOND * delta
+	if state.cash >= due:
+		state.cash -= due
+		state.lifetime_wages_paid += due
+		report["wages_paid"] = float(report["wages_paid"]) + due
+		if state.staff_striking:
+			state.staff_striking = false
+			if allow_events:
+				state.add_event("Payroll restored. Staff have resumed moving with intent.")
+	elif not state.staff_striking:
+		state.staff_striking = true
+		if allow_events:
+			state.add_event("Payroll missed. Staff are exploring the concept of standing very still.")
+
+func hire_worker(state: GameState, role: String) -> bool:
+	if not state.workers.has(role):
+		return false
+	if int(state.workers[role]) >= Formulas.MAX_WORKERS_PER_ROLE:
+		return false
+	if state.cash < Formulas.WORKER_HIRING_FEE:
+		state.add_event("Hiring paused: the signing bonus exceeds the available money.")
+		return false
+	state.cash -= Formulas.WORKER_HIRING_FEE
+	state.workers[role] = int(state.workers[role]) + 1
+	state.add_event("Hired a %s hand. Onboarding consisted of pointing at the bench." % role)
+	return true
+
+func fire_worker(state: GameState, role: String) -> bool:
+	if not state.workers.has(role) or int(state.workers[role]) <= 0:
+		return false
+	state.workers[role] = int(state.workers[role]) - 1
+	state.add_event("A %s hand has been thanked for their service and shown the smaller door." % role)
+	return true
+
+func _update_energy_market(state: GameState, delta: float, allow_events: bool) -> void:
+	state.energy_market_timer += delta
+	while state.energy_market_timer >= 25.0:
+		state.energy_market_timer -= 25.0
+		var old_price: float = state.energy_price
+		state.energy_price = clampf(state.energy_price * (1.0 + rng.randf_range(-0.12, 0.13)), 0.05, 0.35)
+		if allow_events and absf(state.energy_price - old_price) >= 0.05:
+			var direction: String = "surged" if state.energy_price > old_price else "eased"
+			state.add_event("Energy prices have %s to $%s per cell. The utility has revised its opinion of the garage." % [direction, Formulas.format_number(state.energy_price)])
 
 func _update_contracts(state: GameState, delta: float, report: Dictionary) -> void:
 	if not state.contract_offer.is_empty():
@@ -288,6 +346,7 @@ func _apply_upgrade_effects(state: GameState, definition: Dictionary) -> void:
 	state.wear_reduction += float(effects.get("wear_reduction_add", 0.0))
 	state.prep_rate += float(effects.get("prep_rate_add", 0.0))
 	state.testing_rate += float(effects.get("testing_rate_add", 0.0))
+	state.energy_discount += float(effects.get("energy_discount_add", 0.0))
 
 func _update_material_market(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
 	state.material_market_timer += delta

@@ -19,6 +19,8 @@ func _init() -> void:
 	_test_lost_sales()
 	_test_chunked_advance()
 	_test_downtime()
+	_test_energy()
+	_test_employees()
 	_test_contracts()
 	_test_offline_advance_has_no_security_events()
 	_test_security_event_effects()
@@ -263,6 +265,57 @@ func _test_downtime() -> void:
 	simulation.advance(state, 1.0, false)
 	_check(is_equal_approx(state.raw_materials, 99.0), "partial downtime allows partial production")
 
+func _test_energy() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.cash = 100.0
+	state.raw_materials = 100.0
+	state.warehouse_capacity = 1000.0
+	state.production_per_second = 2.0
+	state.prep_rate = 100.0
+	state.energy_price = 0.1
+	state.awareness = 0.0
+	var report: Dictionary = simulation.advance(state, 1.0, false)
+	_check(is_equal_approx(float(report["energy_cost"]), 0.2), "automation is billed for energy per cell")
+	_check(is_equal_approx(state.cash, 99.8), "energy cost deducted from cash")
+	_check(is_equal_approx(state.lifetime_energy_cost, 0.2), "energy spend recorded")
+
+	state.energy_discount = 0.5
+	_check(is_equal_approx(Formulas.energy_cost_per_cell(state), 0.05), "energy discount lowers cost per cell")
+
+func _test_employees() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.cash = 1000.0
+	state.raw_materials = 100.0
+	state.warehouse_capacity = 1000.0
+	state.awareness = 0.0
+
+	_check(simulation.hire_worker(state, "prep"), "hiring succeeds with cash")
+	_check(is_equal_approx(state.cash, 850.0), "hiring fee charged")
+	simulation.hire_worker(state, "prep")
+	_check(not simulation.hire_worker(state, "prep"), "role capped at max workers")
+	_check(is_equal_approx(Formulas.staffed_prep_rate(state), 1.6), "prep workers raise prep rate")
+
+	simulation.hire_worker(state, "assembly")
+	_check(is_equal_approx(Formulas.staffed_assembly_rate(state), 0.4), "assembly worker produces without machines")
+	var report: Dictionary = simulation.advance(state, 1.0, false)
+	_check(is_equal_approx(float(report["cells_made"]), 0.4), "staffed assembly produces cells")
+	_check(is_equal_approx(state.lifetime_wages_paid, 1.05), "wages paid per worker per second")
+
+	state.cash = 0.0
+	simulation.advance(state, 1.0, false)
+	_check(state.staff_striking, "unpaid staff strike")
+	_check(is_equal_approx(Formulas.automated_throughput(state), 0.0), "striking staff stop producing")
+
+	state.cash = 100.0
+	simulation.advance(state, 1.0, false)
+	_check(not state.staff_striking, "payroll recovery ends strike")
+
+	_check(simulation.fire_worker(state, "assembly"), "firing reduces headcount")
+	_check(not simulation.fire_worker(state, "assembly"), "cannot fire from empty role")
+	_check(not simulation.hire_worker(state, "manager"), "unknown role rejected")
+
 func _test_contracts() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
@@ -377,6 +430,11 @@ func _test_save_round_trip() -> void:
 	state.lifetime_sales_lost = 42.0
 	state.active_contract = {"buyer": "a test client", "quantity": 10.0, "remaining": 3.0, "price_per_cell": 5.0, "value": 50.0, "time_remaining": 20.0}
 	state.lifetime_contracts_completed = 7
+	state.energy_price = 0.22
+	state.energy_discount = 0.24
+	state.workers = {"prep": 1, "assembly": 2, "testing": 0}
+	state.lifetime_energy_cost = 55.0
+	state.lifetime_wages_paid = 66.0
 	state.upgrade_levels = {"better_tools": 2}
 	state.lifetime_revenue = 999.0
 	state.add_event("Round trip initiated.")
@@ -400,6 +458,10 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.lifetime_sales_lost, 42.0), "lost sales restored")
 	_check(is_equal_approx(float(loaded.active_contract.get("remaining", 0.0)), 3.0), "active contract restored")
 	_check(loaded.lifetime_contracts_completed == 7, "contract stats restored")
+	_check(is_equal_approx(loaded.energy_price, 0.22), "energy price restored")
+	_check(is_equal_approx(loaded.energy_discount, 0.24), "energy discount restored")
+	_check(int(loaded.workers.get("assembly", 0)) == 2, "workers restored")
+	_check(is_equal_approx(loaded.lifetime_wages_paid, 66.0), "wages stat restored")
 	_check(int(loaded.upgrade_levels.get("better_tools", 0)) == 2, "upgrade levels restored")
 	_check(is_equal_approx(loaded.lifetime_revenue, 999.0), "stats restored")
 	_check(loaded.event_log.size() > 0 and loaded.event_log[0] == "Round trip initiated.", "event log restored")

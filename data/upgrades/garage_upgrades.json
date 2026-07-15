@@ -79,6 +79,17 @@
     }
   },
   {
+    "id": "efficient_drives",
+    "name": "Efficient Drives",
+    "description": "The machines now consume electricity rather than inhaling it.",
+    "base_cost": 150.0,
+    "cost_scale": 1.7,
+    "max_level": 4,
+    "effects": {
+      "energy_discount_add": 0.12
+    }
+  },
+  {
     "id": "garage_shelving",
     "name": "Garage Shelving",
     "description": "Vertical storage has been approved by gravity, conditionally.",

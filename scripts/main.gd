@@ -33,6 +33,8 @@ var quality_label: Label
 var contract_label: Label
 var accept_contract_button: Button
 var decline_contract_button: Button
+var staff_labels: Dictionary = {}
+var wage_label: Label
 
 const UI_SCALES: Array[float] = [1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -165,6 +167,33 @@ func _build_ui() -> void:
 	middle.add_child(service_button)
 
 	market_label = _add_label(middle)
+
+	var staff_heading: Label = Label.new()
+	staff_heading.text = "Staff"
+	staff_heading.add_theme_font_size_override("font_size", 18)
+	middle.add_child(staff_heading)
+
+	for role: String in ["prep", "assembly", "testing"]:
+		var staff_row: HBoxContainer = HBoxContainer.new()
+		staff_row.add_theme_constant_override("separation", 8)
+		middle.add_child(staff_row)
+
+		var staff_label: Label = Label.new()
+		staff_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		staff_labels[role] = staff_label
+		staff_row.add_child(staff_label)
+
+		var hire_button: Button = Button.new()
+		hire_button.text = "Hire"
+		hire_button.pressed.connect(func() -> void: simulation.hire_worker(state, role))
+		staff_row.add_child(hire_button)
+
+		var fire_button: Button = Button.new()
+		fire_button.text = "Let go"
+		fire_button.pressed.connect(func() -> void: simulation.fire_worker(state, role))
+		staff_row.add_child(fire_button)
+
+	wage_label = _add_label(middle)
 
 	var controls_heading: Label = Label.new()
 	controls_heading.text = "Settings"
@@ -358,13 +387,15 @@ func _refresh_ui() -> void:
 		roundi(operations_risk * 100.0),
 		roundi(state.risk_reduction * 100.0)
 	]
-	stats_label.text = "Lifetime made: %s cells\nLifetime sold: %s cells\nLifetime revenue: $%s\nMaterials bought: %s\nSecurity losses: $%s\nSales lost to stock-outs: %s cells\nTime operated: %s" % [
+	stats_label.text = "Lifetime made: %s cells\nLifetime sold: %s cells\nLifetime revenue: $%s\nMaterials bought: %s\nSecurity losses: $%s\nSales lost to stock-outs: %s cells\nEnergy paid: $%s | Wages paid: $%s\nTime operated: %s" % [
 		Formulas.format_number(state.lifetime_cells_made),
 		Formulas.format_number(state.lifetime_cells_sold),
 		Formulas.format_number(state.lifetime_revenue),
 		Formulas.format_number(state.lifetime_materials_bought),
 		Formulas.format_number(state.lifetime_security_losses),
 		Formulas.format_number(state.lifetime_sales_lost),
+		Formulas.format_number(state.lifetime_energy_cost),
+		Formulas.format_number(state.lifetime_wages_paid),
 		_format_duration(state.seconds_played)
 	]
 	price_label.text = "Sale price: $%s/cell" % Formulas.format_number(state.sale_price)
@@ -375,12 +406,14 @@ func _refresh_ui() -> void:
 			ceili(state.production_downtime),
 			Formulas.format_number(state.manual_output)
 		]
-	elif state.production_per_second > 0.0:
-		var bottleneck: String = " (prep-limited)" if state.prep_rate < state.production_per_second else " (assembly-limited)"
+	elif Formulas.automated_throughput(state) > 0.0:
+		var staffed_prep: float = Formulas.staffed_prep_rate(state)
+		var staffed_assembly: float = Formulas.staffed_assembly_rate(state)
+		var bottleneck: String = " (prep-limited)" if staffed_prep < staffed_assembly else " (assembly-limited)"
 		production_label.text = "Stages: prep %s/s | assembly %s/s | testing %s/s\nAutomated output: %s cells/sec%s | Manual batch: %s" % [
-			Formulas.format_number(state.prep_rate),
-			Formulas.format_number(state.production_per_second),
-			Formulas.format_number(state.testing_rate),
+			Formulas.format_number(staffed_prep),
+			Formulas.format_number(staffed_assembly),
+			Formulas.format_number(Formulas.staffed_testing_rate(state)),
 			Formulas.format_number(Formulas.automated_throughput(state)),
 			bottleneck,
 			Formulas.format_number(state.manual_output)
@@ -395,10 +428,12 @@ func _refresh_ui() -> void:
 	]
 	_update_maintenance_row()
 	_update_contracts_section()
-	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
+	_update_staff_section()
+	var estimated_margin: float = Formulas.estimated_margin_per_cell(state) - Formulas.energy_cost_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
-	market_label.text = "Estimated margin: $%s/cell\nInventory sell-through: %s cells/sec\nDemand note: lower prices sell faster; quality, trust, and risk also move demand." % [
+	market_label.text = "Estimated margin: $%s/cell (after materials and energy at $%s/cell)\nInventory sell-through: %s cells/sec\nDemand note: lower prices sell faster; quality, trust, and risk also move demand." % [
 		Formulas.format_number(estimated_margin),
+		Formulas.format_number(Formulas.energy_cost_per_cell(state)),
 		Formulas.format_number(sell_through)
 	]
 	_update_upgrade_buttons()
@@ -423,6 +458,27 @@ func _update_maintenance_row() -> void:
 	else:
 		service_button.text = "Service Machines - $%s" % Formulas.format_number(cost)
 		service_button.disabled = state.cash < cost
+
+func _update_staff_section() -> void:
+	for role: String in staff_labels:
+		var count: int = int(state.workers.get(role, 0))
+		var label: Label = staff_labels[role] as Label
+		label.text = "%s: %d/%d (+%s/s each)" % [
+			role.capitalize(),
+			count,
+			Formulas.MAX_WORKERS_PER_ROLE,
+			Formulas.format_number(Formulas.WORKER_STAGE_RATE)
+		]
+	var total: int = Formulas.total_workers(state)
+	if total == 0:
+		wage_label.text = "No staff. The org chart is a dot."
+	elif state.staff_striking:
+		wage_label.text = "Wages: UNPAID - staff are on strike until payroll clears ($%s/s owed)." % Formulas.format_number(total * Formulas.WORKER_WAGE_PER_SECOND)
+	else:
+		wage_label.text = "Wages: $%s/s | Hiring fee: $%s" % [
+			Formulas.format_number(total * Formulas.WORKER_WAGE_PER_SECOND),
+			Formulas.format_number(Formulas.WORKER_HIRING_FEE)
+		]
 
 func _update_contracts_section() -> void:
 	var has_offer: bool = not state.contract_offer.is_empty()

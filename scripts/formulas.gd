@@ -11,14 +11,42 @@ static func demand_per_second(state: GameState) -> float:
 	var quality_factor: float = clampf(quality, 0.25, 4.0)
 	return maxf(0.0, 0.7 * state.awareness * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
 
+const WORKER_STAGE_RATE: float = 0.4
+const WORKER_WAGE_PER_SECOND: float = 0.35
+const WORKER_HIRING_FEE: float = 150.0
+const MAX_WORKERS_PER_ROLE: int = 2
+
+static func active_workers(state: GameState, role: String) -> int:
+	if state.staff_striking:
+		return 0
+	return int(state.workers.get(role, 0))
+
+static func staffed_prep_rate(state: GameState) -> float:
+	return state.prep_rate + active_workers(state, "prep") * WORKER_STAGE_RATE
+
+static func staffed_assembly_rate(state: GameState) -> float:
+	return state.production_per_second * machine_efficiency(state) + active_workers(state, "assembly") * WORKER_STAGE_RATE
+
+static func staffed_testing_rate(state: GameState) -> float:
+	return state.testing_rate + active_workers(state, "testing") * WORKER_STAGE_RATE
+
 static func automated_throughput(state: GameState) -> float:
-	return minf(state.production_per_second, state.prep_rate) * machine_efficiency(state)
+	return minf(staffed_assembly_rate(state), staffed_prep_rate(state))
 
 static func testing_coverage(state: GameState) -> float:
 	var throughput: float = automated_throughput(state)
 	if throughput <= 0.001:
 		return 1.0
-	return clampf(state.testing_rate / throughput, 0.0, 1.0)
+	return clampf(staffed_testing_rate(state) / throughput, 0.0, 1.0)
+
+static func energy_cost_per_cell(state: GameState) -> float:
+	return maxf(0.0, state.energy_price * (1.0 - clampf(state.energy_discount, 0.0, 0.8)))
+
+static func total_workers(state: GameState) -> int:
+	var count: int = 0
+	for role: String in state.workers:
+		count += int(state.workers[role])
+	return count
 
 static func effective_quality(state: GameState) -> float:
 	var condition_factor: float = 0.8 + 0.2 * clampf(state.machine_condition, 0.0, 1.0)

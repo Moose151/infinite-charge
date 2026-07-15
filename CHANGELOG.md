@@ -4,6 +4,17 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.6 — 2026-07-15
+
+Employees and energy consumption — Milestone One (Factory Expansion) complete.
+
+- Energy: automated production is billed per cell at a drifting energy price ($0.05–0.35, drifts every 25 s). Margin readout now shows price − materials − energy. New Efficient Drives upgrade (−12% energy per level, 4 levels).
+- Employees: hire up to 2 workers per stage (prep, assembly, testing) for a $150 fee plus $0.35/s wages. Workers add +0.4/s to their stage — assembly hands can build cells before you own any machines.
+- Missed payroll puts staff on strike (boosts stop, wages stop) until cash covers wages again.
+- Staff section in the production panel; wages and energy tracked in lifetime stats.
+- Test suite extended to 125 checks; harness bot hires toward the bottleneck stage.
+- Milestone One systems all present: production stages, maintenance, quality, employees, warehouse capacity, energy consumption, first contracts.
+
 ## 0.5 — 2026-07-15
 
 First contracts (Milestone One continues).

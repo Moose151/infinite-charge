@@ -68,6 +68,17 @@ func _run_playthrough(sale_price: float) -> void:
 			else:
 				simulation.decline_contract(state)
 
+		# Hire toward the bottleneck stage once cash is comfortable.
+		if state.cash >= 600.0 and not state.staff_striking:
+			var staffed_prep: float = Formulas.staffed_prep_rate(state)
+			var staffed_assembly: float = Formulas.staffed_assembly_rate(state)
+			if staffed_prep < staffed_assembly and int(state.workers["prep"]) < Formulas.MAX_WORKERS_PER_ROLE:
+				simulation.hire_worker(state, "prep")
+			elif staffed_assembly <= staffed_prep and int(state.workers["assembly"]) < Formulas.MAX_WORKERS_PER_ROLE:
+				simulation.hire_worker(state, "assembly")
+			elif Formulas.testing_coverage(state) < 0.95 and int(state.workers["testing"]) < Formulas.MAX_WORKERS_PER_ROLE:
+				simulation.hire_worker(state, "testing")
+
 		# Service machines before wear eats too much output.
 		if state.machine_condition < 0.7 and state.cash >= Formulas.service_cost(state) + 20.0:
 			simulation.service_machines(state)
