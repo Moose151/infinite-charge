@@ -5,7 +5,7 @@
     "description": "Fewer stripped screws. Morale has not been formally measured.",
     "base_cost": 35.0,
     "cost_scale": 1.55,
-    "max_level": 8,
+    "max_level": 5,
     "effects": {
       "manual_output_add": 1.0
     }
@@ -26,22 +26,22 @@
     "name": "Simple Advertising",
     "description": "A local poster campaign confirms that batteries do, in fact, exist.",
     "base_cost": 75.0,
-    "cost_scale": 1.65,
+    "cost_scale": 1.6,
     "max_level": 8,
     "effects": {
-      "awareness_add": 0.18
+      "awareness_add": 0.25
     }
   },
   {
     "id": "workbench_automation",
     "name": "Workbench Automation",
     "description": "A small machine now performs one task almost without complaint.",
-    "base_cost": 140.0,
-    "cost_scale": 1.7,
+    "base_cost": 110.0,
+    "cost_scale": 1.55,
     "max_level": 10,
     "effects": {
-      "production_per_second_add": 0.15,
-      "risk_add": 0.015
+      "production_per_second_add": 0.35,
+      "risk_add": 0.02
     }
   },
   {
@@ -54,6 +54,18 @@
     "effects": {
       "quality_add": 0.08,
       "base_price_add": 0.55
+    }
+  },
+  {
+    "id": "online_storefront",
+    "name": "Online Storefront",
+    "description": "The company is now discoverable by customers and, regrettably, by everyone else.",
+    "base_cost": 300.0,
+    "cost_scale": 1.8,
+    "max_level": 5,
+    "effects": {
+      "awareness_add": 0.4,
+      "risk_add": 0.05
     }
   },
   {

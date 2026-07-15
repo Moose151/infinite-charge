@@ -26,6 +26,9 @@ var pause_button: CheckButton
 var speed_option: OptionButton
 var autosave_spin: SpinBox
 var offline_limit_spin: SpinBox
+var ui_scale_option: OptionButton
+
+const UI_SCALES: Array[float] = [1.0, 1.25, 1.5, 1.75, 2.0]
 
 func _ready() -> void:
 	upgrades = _load_upgrade_data()
@@ -37,6 +40,7 @@ func _ready() -> void:
 		state.add_event("Save loaded. The company denies having missed you, for tax reasons.")
 	else:
 		state.add_event("Garage operations initiated. Desk count: one. Desk confidence: moderate.")
+	_apply_ui_scale()
 	_refresh_ui()
 
 func _process(delta: float) -> void:
@@ -65,7 +69,8 @@ func _build_ui() -> void:
 	root.add_child(main)
 
 	var title: Label = Label.new()
-	title.text = "Infinite Charge"
+	var version: String = str(ProjectSettings.get_setting("application/config/version", ""))
+	title.text = "Infinite Charge" if version.is_empty() else "Infinite Charge v%s" % version
 	title.add_theme_font_size_override("font_size", 28)
 	main.add_child(title)
 
@@ -102,10 +107,15 @@ func _build_ui() -> void:
 	produce_button.pressed.connect(func() -> void: simulation.manual_produce(state))
 	middle.add_child(produce_button)
 
-	var buy_materials_button: Button = Button.new()
-	buy_materials_button.text = "Buy 10 Materials"
-	buy_materials_button.pressed.connect(func() -> void: simulation.buy_materials(state, 10.0))
-	middle.add_child(buy_materials_button)
+	var buy_row: HBoxContainer = HBoxContainer.new()
+	buy_row.add_theme_constant_override("separation", 8)
+	middle.add_child(buy_row)
+	for quantity: float in [1.0, 10.0, 100.0]:
+		var buy_button: Button = Button.new()
+		buy_button.text = "Buy %d Material%s" % [int(quantity), "" if quantity == 1.0 else "s"]
+		buy_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		buy_button.pressed.connect(func() -> void: simulation.buy_materials(state, quantity))
+		buy_row.add_child(buy_button)
 
 	price_label = _add_label(middle)
 	price_slider = HSlider.new()
@@ -160,6 +170,20 @@ func _build_ui() -> void:
 	autosave_spin.step = 5.0
 	autosave_spin.value_changed.connect(_on_autosave_changed)
 	autosave_row.add_child(autosave_spin)
+
+	var scale_row: HBoxContainer = HBoxContainer.new()
+	scale_row.add_theme_constant_override("separation", 8)
+	middle.add_child(scale_row)
+
+	var scale_label: Label = Label.new()
+	scale_label.text = "Interface scale"
+	scale_row.add_child(scale_label)
+
+	ui_scale_option = OptionButton.new()
+	for scale: float in UI_SCALES:
+		ui_scale_option.add_item("%d%%" % roundi(scale * 100.0))
+	ui_scale_option.item_selected.connect(_on_ui_scale_selected)
+	scale_row.add_child(ui_scale_option)
 
 	var offline_row: HBoxContainer = HBoxContainer.new()
 	offline_row.add_theme_constant_override("separation", 8)
@@ -250,6 +274,14 @@ func _on_autosave_changed(value: float) -> void:
 	autosave_timer = 0.0
 	state.notify_changed()
 
+func _on_ui_scale_selected(index: int) -> void:
+	state.ui_scale = UI_SCALES[clampi(index, 0, UI_SCALES.size() - 1)]
+	_apply_ui_scale()
+	state.notify_changed()
+
+func _apply_ui_scale() -> void:
+	get_window().content_scale_factor = state.ui_scale
+
 func _on_offline_limit_changed(value: float) -> void:
 	state.offline_limit_seconds = value * 60.0 * 60.0
 	state.notify_changed()
@@ -275,6 +307,7 @@ func _refresh_ui() -> void:
 	var offline_hours: float = state.offline_limit_seconds / 3600.0
 	if not is_equal_approx(offline_limit_spin.value, offline_hours):
 		offline_limit_spin.set_value_no_signal(offline_hours)
+	_sync_ui_scale_option()
 	cash_label.text = "Cash: $%s" % Formulas.format_number(state.cash)
 	materials_label.text = "Materials: %s units" % Formulas.format_number(state.raw_materials)
 	inventory_label.text = "Battery inventory: %s cells" % Formulas.format_number(state.battery_cells)
@@ -291,10 +324,16 @@ func _refresh_ui() -> void:
 	price_label.text = "Sale price: $%s/cell" % Formulas.format_number(state.sale_price)
 	demand_label.text = "Potential demand: %s cells/sec" % Formulas.format_number(state.demand_per_second)
 	sales_label.text = "Current sales: %s cells/sec" % Formulas.format_number(state.sales_per_second)
-	production_label.text = "Automation: %s cells/sec | Manual batch: %s" % [
-		Formulas.format_number(state.production_per_second),
-		Formulas.format_number(state.manual_output)
-	]
+	if state.production_downtime > 0.0:
+		production_label.text = "Automation: OFFLINE for %ds (incident response) | Manual batch: %s" % [
+			ceili(state.production_downtime),
+			Formulas.format_number(state.manual_output)
+		]
+	else:
+		production_label.text = "Automation: %s cells/sec | Manual batch: %s" % [
+			Formulas.format_number(state.production_per_second),
+			Formulas.format_number(state.manual_output)
+		]
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
 	market_label.text = "Estimated margin: $%s/cell\nInventory sell-through: %s cells/sec\nDemand note: lower prices sell faster; quality, trust, and risk also move demand." % [
@@ -304,6 +343,14 @@ func _refresh_ui() -> void:
 	_update_upgrade_buttons()
 	_update_event_log()
 	_update_offline_report()
+
+func _sync_ui_scale_option() -> void:
+	var selected_index: int = 0
+	for index: int in range(UI_SCALES.size()):
+		if is_equal_approx(UI_SCALES[index], state.ui_scale):
+			selected_index = index
+	if ui_scale_option.selected != selected_index:
+		ui_scale_option.select(selected_index)
 
 func _sync_speed_option() -> void:
 	var speeds: Array[float] = [0.5, 1.0, 2.0, 5.0]

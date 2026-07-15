@@ -2,11 +2,17 @@
 
 ## Current Status
 
-Infinite Charge is a Godot 4 idle-management game. The repo currently contains the first garage-stage MVP scaffold: one scene, a data-driven starter upgrade list, a separate simulation layer, JSON save/load, offline progress, and a simple desktop UI.
+Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-stage MVP: one scene, a data-driven upgrade list, data-driven security events, a separate simulation layer, JSON save/load, offline progress, a headless balance harness, a headless test suite, and a simple desktop UI.
+
+The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 4, automation grows to ~3.5 cells/sec (clicking becomes optional), and nearly all upgrades max out within 50–60 minutes. The optimal sale price shifts from ~$4 early (demand-limited) to ~$6+ late (supply-limited), so the pricing decision stays live throughout the session.
 
 The project has been pushed to GitHub:
 
 `https://github.com/Moose151/infinite-charge`
+
+## Versioning
+
+`CHANGELOG.md` at the repo root is the version history. The scheme is `0.x` for larger updates and `0.x.y` for small ones, starting from 0.1. **Every commit/push must update `CHANGELOG.md`** and keep `application/config/version` in `project.godot` in sync (it is displayed in the game title).
 
 ## Source Of Truth
 
@@ -43,6 +49,9 @@ Avoid starting factories, staff, research trees, contracts, prestige, network ma
 - `scripts/formulas.gd` owns tuning formulas such as demand, risk, and number formatting.
 - `scripts/save_manager.gd` writes/reads JSON from `user://save_slot_1.json`.
 - `data/upgrades/garage_upgrades.json` defines current upgrades and effects.
+- `data/events/security_events.json` defines security events: trigger cadence, chance scaling with risk, and per-event type (`cash`, `inventory`, `downtime`), weight, severity range, and message.
+- `tools/run_tests.gd` is the headless test suite (53 checks over Formulas, Simulation actions, security events, downtime, bankruptcy rescue, save round-trip). Run: `godot --headless --path . --script res://tools/run_tests.gd` (exits non-zero on failure).
+- `tools/balance_harness.gd` simulates a bot player for an hour at several fixed prices and prints a progression table. Run: `godot --headless --path . --script res://tools/balance_harness.gd`.
 
 Keep simulation behavior out of UI code whenever possible. Future offline progress, tests, automation, and balance tools all depend on `Simulation.advance()` staying independent from the interface.
 
@@ -60,37 +69,37 @@ The player can:
 - save manually and autosave
 - receive offline progress after reopening
 
+## Environment Notes
+
+- The standard (non-mono) Godot 4.7 binary is installed at `~/.local/bin/godot` and is on PATH. Use it for everything.
+- The `godot-4` snap on this machine is the mono/C# build; it shows a harmless but annoying ".NET runtime" popup on every launch because no .NET SDK is installed. This project has no C#, so the snap build is best avoided.
+
 ## Known Limitations
 
-- Godot is not installed on PATH in the current shell, so the project has not been editor-run from this environment.
 - The UI is functional placeholder work, not final presentation.
-- Balance values are first-pass guesses.
+- Balance is harness-tested but not yet human-playtested; the bot cannot judge feel.
 - Save migration exists only as a version field, not a real migration pipeline.
-- The current event system is embedded in `Simulation`; it should become data-driven after MVP feel is proven.
-- There are no automated tests yet.
+- Settings (speed, autosave, offline limit, interface scale) live inline in the middle panel rather than a dedicated settings screen, and are stored in the save file rather than a separate config.
+- The interface scale applies via `Window.content_scale_factor`; it has been verified headless only.
 
 ## Recommended Next Steps
 
-1. Open the project in Godot 4 and fix any parser/runtime issues.
-2. Play the first 10 minutes and tune:
-   - starting cash/materials
-   - demand curve
-   - material price drift
-   - upgrade costs
-   - automation speed
-3. Add a small settings screen or panel for interface scale, offline limit, and autosave interval.
-4. Add clearer market explanations:
-   - why demand changed
-   - estimated margin
-   - sell-through rate
-5. Add basic stats:
-   - cells made
-   - cells sold
-   - revenue
-   - materials bought
-   - security losses
-   - play time
-6. Once the loop is readable and satisfying, begin Milestone One: production stages, maintenance, quality, warehouse capacity, and first contracts.
+1. Human-playtest the first 10 minutes and adjust feel: click cadence, event frequency, message tone.
+2. Consider showing effective risk breakdown (base + upgrades − mitigations) so the security trade-off reads clearly in the UI.
+3. Consider an inventory-value line and a "sales lost to stock-outs" stat so supply-limited late game is legible.
+4. Once the loop is readable and satisfying, begin Milestone One: production stages, maintenance, quality, warehouse capacity, and first contracts.
+
+## Balance Changes (2026-07-15)
+
+Derived from harness runs; previous values stalled progression at ~25 minutes with automation never overtaking clicking.
+
+- Base demand coefficient 0.55 → 0.7 (`formulas.gd`).
+- Advertising: awareness +0.18 → +0.25 per level, cost scale 1.65 → 1.6.
+- Workbench Automation: +0.15 → +0.35 cells/sec per level, base cost 140 → 110, scale 1.7 → 1.55, risk +0.015 → +0.02 per level.
+- Better Hand Tools capped at level 5 (was 8) so clicking does not outscale automation.
+- New upgrade: Online Storefront (+0.4 awareness, +0.05 risk per level) — the deliberate growth-vs-risk trade-off.
+- Security events moved to JSON and made meaningful: cash losses 6–20% of cash, inventory theft 15–35% of stock, production downtime 20–70 seconds. Backups (recovery) mitigate all three.
+- Bankruptcy safety net: a player with under $5, no materials, and no inventory receives a $25 pity investment; materials can also be bought in batches of 1/10/100.
 
 ## Tone Notes
 

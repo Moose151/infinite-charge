@@ -1,0 +1,55 @@
+{
+  "period_seconds": 40.0,
+  "base_chance": 0.12,
+  "risk_chance_scale": 0.85,
+  "events": [
+    {
+      "id": "phishing_invoice",
+      "type": "cash",
+      "weight": 3,
+      "severity_min": 0.06,
+      "severity_max": 0.16,
+      "message": "Finance paid an invoice from a supplier that does not, on reflection, exist."
+    },
+    {
+      "id": "credential_stuffing",
+      "type": "cash",
+      "weight": 2,
+      "severity_min": 0.05,
+      "severity_max": 0.12,
+      "message": "A suspicious login was contained after requesting a meeting with itself."
+    },
+    {
+      "id": "exposed_service",
+      "type": "cash",
+      "weight": 2,
+      "severity_min": 0.08,
+      "severity_max": 0.2,
+      "message": "An exposed service was found and politely asked to stop being exposed."
+    },
+    {
+      "id": "warehouse_shrinkage",
+      "type": "inventory",
+      "weight": 2,
+      "severity_min": 0.15,
+      "severity_max": 0.35,
+      "message": "An order-system glitch shipped product to an address best described as theoretical."
+    },
+    {
+      "id": "ransomware_scare",
+      "type": "downtime",
+      "weight": 2,
+      "severity_min": 25.0,
+      "severity_max": 70.0,
+      "message": "The workbench controller is encrypting itself. Production is observing a moment of silence."
+    },
+    {
+      "id": "firmware_surprise",
+      "type": "downtime",
+      "weight": 1,
+      "severity_min": 20.0,
+      "severity_max": 50.0,
+      "message": "A supplier sent a firmware update with the confidence of someone who had not read it."
+    }
+  ]
+}

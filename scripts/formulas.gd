@@ -8,7 +8,7 @@ static func demand_per_second(state: GameState) -> float:
 	var trust_factor: float = 1.0 + state.trust * 0.35
 	var security_penalty: float = clampf(effective_risk(state) * 0.55, 0.0, 0.45)
 	var quality_factor: float = clampf(state.quality, 0.25, 4.0)
-	return maxf(0.0, 0.55 * state.awareness * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
+	return maxf(0.0, 0.7 * state.awareness * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
 
 static func effective_risk(state: GameState) -> float:
 	return clampf(state.risk - state.risk_reduction, 0.0, 1.0)

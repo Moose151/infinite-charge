@@ -2,12 +2,35 @@ extends RefCounted
 class_name Simulation
 
 const MATERIAL_MARKET_PERIOD: float = 18.0
-const SECURITY_EVENT_PERIOD: float = 45.0
+const SECURITY_EVENTS_PATH: String = "res://data/events/security_events.json"
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+var security_event_period: float = 40.0
+var security_base_chance: float = 0.12
+var security_risk_chance_scale: float = 0.85
+var security_events: Array[Dictionary] = []
 
 func _init() -> void:
 	rng.randomize()
+	_load_security_events()
+
+func _load_security_events() -> void:
+	var file: FileAccess = FileAccess.open(SECURITY_EVENTS_PATH, FileAccess.READ)
+	if file == null:
+		push_error("Could not load security event data.")
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		push_error("Security event data must be a dictionary.")
+		return
+	var data: Dictionary = parsed
+	security_event_period = float(data.get("period_seconds", security_event_period))
+	security_base_chance = float(data.get("base_chance", security_base_chance))
+	security_risk_chance_scale = float(data.get("risk_chance_scale", security_risk_chance_scale))
+	security_events.clear()
+	for item: Variant in data.get("events", []):
+		if typeof(item) == TYPE_DICTIONARY:
+			security_events.append(item)
 
 func advance(state: GameState, delta: float, allow_events: bool = true) -> Dictionary:
 	var report: Dictionary = {
@@ -24,7 +47,12 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 	state.seconds_played += delta
 	state.demand_per_second = Formulas.demand_per_second(state)
 
-	var automated_cells: float = minf(state.raw_materials, state.production_per_second * delta)
+	var uptime: float = delta
+	if state.production_downtime > 0.0:
+		uptime = maxf(0.0, delta - state.production_downtime)
+		state.production_downtime = maxf(0.0, state.production_downtime - delta)
+
+	var automated_cells: float = minf(state.raw_materials, state.production_per_second * uptime)
 	if automated_cells > 0.0:
 		state.raw_materials -= automated_cells
 		state.battery_cells += automated_cells
@@ -47,17 +75,28 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 
 	_update_material_market(state, delta, allow_events, report)
 	_update_security_events(state, delta, allow_events, report)
+	_check_bankruptcy_rescue(state, allow_events)
 	state.notify_changed()
 	return report
 
+func _check_bankruptcy_rescue(state: GameState, allow_events: bool) -> void:
+	# Safety net: with no cash, materials, inventory, or automation the player
+	# would be permanently stuck. Self-limiting because the grant refills cash.
+	if state.cash >= 5.0 or state.raw_materials >= 1.0 or state.battery_cells >= 0.01:
+		return
+	state.cash = 25.0
+	if allow_events:
+		state.add_event("A concerned relative has invested $25. The board thanks them and requests they stop attending meetings.")
+
 func manual_produce(state: GameState) -> bool:
 	if state.raw_materials < state.manual_output:
-		state.add_event("Production paused: materials are currently represented by an empty shelf.")
+		if state.event_log.is_empty() or not state.event_log[0].begins_with("Production paused"):
+			state.add_event("Production paused: materials are currently represented by an empty shelf.")
 		return false
 	state.raw_materials -= state.manual_output
 	state.battery_cells += state.manual_output
 	state.lifetime_cells_made += state.manual_output
-	state.add_event("Assembled %s cell%s by hand." % [Formulas.format_number(state.manual_output), "" if is_equal_approx(state.manual_output, 1.0) else "s"])
+	state.notify_changed()
 	return true
 
 func buy_materials(state: GameState, quantity: float) -> bool:
@@ -113,24 +152,48 @@ func _update_material_market(state: GameState, delta: float, allow_events: bool,
 			state.add_event("Material spot price %s to $%s. Procurement has updated the spreadsheet." % [direction, Formulas.format_number(state.material_price)])
 
 func _update_security_events(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
-	if not allow_events:
+	if not allow_events or security_events.is_empty():
 		return
 	state.security_event_timer += delta
-	while state.security_event_timer >= SECURITY_EVENT_PERIOD:
-		state.security_event_timer -= SECURITY_EVENT_PERIOD
-		var event_chance: float = 0.18 + Formulas.effective_risk(state) * 0.75
+	while state.security_event_timer >= security_event_period:
+		state.security_event_timer -= security_event_period
+		var event_chance: float = security_base_chance + Formulas.effective_risk(state) * security_risk_chance_scale
 		if rng.randf() > event_chance:
 			continue
-		var loss_ratio: float = rng.randf_range(0.015, 0.055) * (1.0 - clampf(state.recovery, 0.0, 0.8))
-		var loss: float = minf(state.cash * loss_ratio, state.cash)
-		state.cash -= loss
-		state.lifetime_security_losses += loss
-		report["security_losses"] = float(report["security_losses"]) + loss
-		report["security_events"] = int(report["security_events"]) + 1
-		var messages: Array[String] = [
-			"A suspicious login was contained after requesting a meeting with itself.",
-			"An exposed service was found and politely asked to stop being exposed.",
-			"A supplier sent a firmware update with the confidence of someone who had not read it.",
-			"Security detected unusual activity. Operations detected a production excuse."
-		]
-		state.add_event("%s Response cost: $%s." % [messages.pick_random(), Formulas.format_number(loss)])
+		_trigger_security_event(state, _pick_security_event(), report)
+
+func _pick_security_event() -> Dictionary:
+	var total_weight: float = 0.0
+	for event: Dictionary in security_events:
+		total_weight += float(event.get("weight", 1.0))
+	var roll: float = rng.randf() * total_weight
+	for event: Dictionary in security_events:
+		roll -= float(event.get("weight", 1.0))
+		if roll <= 0.0:
+			return event
+	return security_events.back()
+
+func _trigger_security_event(state: GameState, event: Dictionary, report: Dictionary) -> void:
+	var mitigation: float = 1.0 - clampf(state.recovery, 0.0, 0.8)
+	var severity: float = rng.randf_range(float(event.get("severity_min", 0.05)), float(event.get("severity_max", 0.15))) * mitigation
+	var message: String = str(event.get("message", "Security has noticed something."))
+	var detail: String = ""
+	match str(event.get("type", "cash")):
+		"cash":
+			var loss: float = minf(state.cash * severity, state.cash)
+			state.cash -= loss
+			state.lifetime_security_losses += loss
+			report["security_losses"] = float(report["security_losses"]) + loss
+			detail = "Response cost: $%s." % Formulas.format_number(loss)
+		"inventory":
+			var lost_cells: float = state.battery_cells * severity
+			state.battery_cells -= lost_cells
+			var value: float = lost_cells * state.sale_price
+			state.lifetime_security_losses += value
+			report["security_losses"] = float(report["security_losses"]) + value
+			detail = "Stock written off: %s cells." % Formulas.format_number(lost_cells)
+		"downtime":
+			state.production_downtime += severity
+			detail = "Automation offline for %ds." % roundi(severity)
+	report["security_events"] = int(report["security_events"]) + 1
+	state.add_event("%s %s" % [message, detail])

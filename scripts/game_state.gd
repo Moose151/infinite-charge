@@ -27,6 +27,7 @@ var risk_reduction: float = 0.0
 var recovery: float = 0.0
 var trust: float = 0.0
 var security_event_timer: float = 0.0
+var production_downtime: float = 0.0
 
 var demand_per_second: float = 0.0
 var sales_per_second: float = 0.0
@@ -41,6 +42,7 @@ var simulation_paused: bool = false
 var simulation_speed: float = 1.0
 var autosave_interval: float = 10.0
 var offline_limit_seconds: float = 60.0 * 60.0 * 8.0
+var ui_scale: float = 1.0
 
 var upgrade_levels: Dictionary = {}
 var event_log: Array[String] = []
@@ -76,6 +78,7 @@ func to_save_data() -> Dictionary:
 		"recovery": recovery,
 		"trust": trust,
 		"security_event_timer": security_event_timer,
+		"production_downtime": production_downtime,
 		"demand_per_second": demand_per_second,
 		"sales_per_second": sales_per_second,
 		"lifetime_cells_made": lifetime_cells_made,
@@ -88,6 +91,7 @@ func to_save_data() -> Dictionary:
 		"simulation_speed": simulation_speed,
 		"autosave_interval": autosave_interval,
 		"offline_limit_seconds": offline_limit_seconds,
+		"ui_scale": ui_scale,
 		"upgrade_levels": upgrade_levels,
 		"event_log": event_log,
 	}
@@ -112,6 +116,7 @@ func load_save_data(data: Dictionary) -> void:
 	recovery = float(data.get("recovery", recovery))
 	trust = float(data.get("trust", trust))
 	security_event_timer = float(data.get("security_event_timer", security_event_timer))
+	production_downtime = float(data.get("production_downtime", production_downtime))
 	demand_per_second = float(data.get("demand_per_second", demand_per_second))
 	sales_per_second = float(data.get("sales_per_second", sales_per_second))
 	lifetime_cells_made = float(data.get("lifetime_cells_made", lifetime_cells_made))
@@ -124,6 +129,7 @@ func load_save_data(data: Dictionary) -> void:
 	simulation_speed = float(data.get("simulation_speed", simulation_speed))
 	autosave_interval = float(data.get("autosave_interval", autosave_interval))
 	offline_limit_seconds = float(data.get("offline_limit_seconds", offline_limit_seconds))
+	ui_scale = float(data.get("ui_scale", ui_scale))
 	upgrade_levels = data.get("upgrade_levels", {})
 	event_log.clear()
 	for message in data.get("event_log", []):
