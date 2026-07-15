@@ -57,6 +57,28 @@
     }
   },
   {
+    "id": "prep_station",
+    "name": "Prep Station",
+    "description": "Materials are now sorted before assembly instead of during an argument.",
+    "base_cost": 100.0,
+    "cost_scale": 1.55,
+    "max_level": 8,
+    "effects": {
+      "prep_rate_add": 0.45
+    }
+  },
+  {
+    "id": "testing_bench",
+    "name": "Testing Bench",
+    "description": "Cells are now tested by equipment rather than by the customer.",
+    "base_cost": 130.0,
+    "cost_scale": 1.6,
+    "max_level": 8,
+    "effects": {
+      "testing_rate_add": 0.45
+    }
+  },
+  {
     "id": "garage_shelving",
     "name": "Garage Shelving",
     "description": "Vertical storage has been approved by gravity, conditionally.",

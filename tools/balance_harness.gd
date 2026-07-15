@@ -69,6 +69,13 @@ func _run_playthrough(sale_price: float) -> void:
 			var level: int = int(state.upgrade_levels.get(id, 0))
 			if level >= int(definition.get("max_level", 1)):
 				continue
+			# Play the bottleneck like a player reading the stage readout.
+			if id == "workbench_automation" and state.production_per_second >= state.prep_rate:
+				continue
+			if id == "prep_station" and state.prep_rate >= state.production_per_second + 0.5:
+				continue
+			if id == "testing_bench" and state.testing_rate >= Formulas.automated_throughput(state):
+				continue
 			var cost: float = Formulas.upgrade_cost(definition, level)
 			if cost < best_cost:
 				best_cost = cost

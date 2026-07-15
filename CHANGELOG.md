@@ -4,6 +4,17 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.4 — 2026-07-15
+
+Production stages and product quality (Milestone One continues).
+
+- Automated production now flows through stages: prep → assembly → testing. Prep is a hard bottleneck — automated output = min(prep rate, assembly rate) × machine efficiency. The production readout shows all three rates and names the limiting stage.
+- Testing is a quality knob rather than a hard cap: cells shipped faster than the testing stage can check them lower effective quality (scope: "poor-quality products may still sell").
+- Effective quality = design quality × machine condition × testing coverage, and feeds demand and fair price — neglected maintenance now hurts sales, not just output.
+- New upgrades: Prep Station (+0.45 prep/sec, 8 levels) and Testing Bench (+0.45 testing/sec, 8 levels).
+- Harness bot now plays the bottleneck (skips stage upgrades that would overshoot). Informed play earns ~$57k in the first hour at the default price — the stage system adds ~30% friction versus v0.3, with no stalls.
+- Test suite extended to 84 checks.
+
 ## 0.3 — 2026-07-15
 
 Milestone One begins: warehouse capacity and maintenance, plus MVP readability polish.

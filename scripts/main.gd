@@ -29,6 +29,7 @@ var offline_limit_spin: SpinBox
 var ui_scale_option: OptionButton
 var condition_label: Label
 var service_button: Button
+var quality_label: Label
 
 const UI_SCALES: Array[float] = [1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -130,6 +131,7 @@ func _build_ui() -> void:
 	demand_label = _add_label(middle)
 	sales_label = _add_label(middle)
 	production_label = _add_label(middle)
+	quality_label = _add_label(middle)
 
 	condition_label = _add_label(middle)
 	service_button = Button.new()
@@ -347,11 +349,24 @@ func _refresh_ui() -> void:
 			ceili(state.production_downtime),
 			Formulas.format_number(state.manual_output)
 		]
-	else:
-		production_label.text = "Automation: %s cells/sec | Manual batch: %s" % [
+	elif state.production_per_second > 0.0:
+		var bottleneck: String = " (prep-limited)" if state.prep_rate < state.production_per_second else " (assembly-limited)"
+		production_label.text = "Stages: prep %s/s | assembly %s/s | testing %s/s\nAutomated output: %s cells/sec%s | Manual batch: %s" % [
+			Formulas.format_number(state.prep_rate),
 			Formulas.format_number(state.production_per_second),
+			Formulas.format_number(state.testing_rate),
+			Formulas.format_number(Formulas.automated_throughput(state)),
+			bottleneck,
 			Formulas.format_number(state.manual_output)
 		]
+	else:
+		production_label.text = "Automation: none yet | Manual batch: %s" % Formulas.format_number(state.manual_output)
+	quality_label.text = "Product quality: %.2f (design %.2f x condition %d%% x testing coverage %d%%)" % [
+		Formulas.effective_quality(state),
+		state.quality,
+		roundi((0.8 + 0.2 * clampf(state.machine_condition, 0.0, 1.0)) * 100.0),
+		roundi(Formulas.testing_coverage(state) * 100.0)
+	]
 	_update_maintenance_row()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)

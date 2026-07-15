@@ -13,6 +13,8 @@ func _init() -> void:
 	_test_upgrades()
 	_test_advance()
 	_test_warehouse_capacity()
+	_test_production_stages()
+	_test_quality()
 	_test_maintenance()
 	_test_lost_sales()
 	_test_chunked_advance()
@@ -118,6 +120,7 @@ func _test_advance() -> void:
 	state.battery_cells = 30.0
 	state.warehouse_capacity = 200.0
 	state.production_per_second = 2.0
+	state.prep_rate = 100.0
 	state.sale_price = 4.0
 	var report: Dictionary = simulation.advance(state, 1.0, false)
 	_check(float(report["cells_made"]) > 0.0, "advance produces automatically")
@@ -133,6 +136,7 @@ func _test_warehouse_capacity() -> void:
 	state.battery_cells = 59.0
 	state.warehouse_capacity = 60.0
 	state.production_per_second = 10.0
+	state.prep_rate = 100.0
 	state.awareness = 0.0
 	simulation.advance(state, 1.0, false)
 	_check(is_equal_approx(state.battery_cells, 60.0), "automation stops at warehouse capacity")
@@ -145,12 +149,60 @@ func _test_warehouse_capacity() -> void:
 	simulation.buy_upgrade(upgraded, {"id": "shelves", "base_cost": 0.0, "max_level": 1, "effects": {"warehouse_capacity_add": 60.0}})
 	_check(is_equal_approx(upgraded.warehouse_capacity, 120.0), "shelving upgrade raises capacity")
 
+func _test_production_stages() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.raw_materials = 100.0
+	state.warehouse_capacity = 1000.0
+	state.production_per_second = 5.0
+	state.prep_rate = 1.0
+	state.awareness = 0.0
+	var report: Dictionary = simulation.advance(state, 1.0, false)
+	_check(is_equal_approx(float(report["cells_made"]), 1.0), "prep stage bottlenecks assembly")
+
+	state.prep_rate = 10.0
+	report = simulation.advance(state, 1.0, false)
+	_check(float(report["cells_made"]) > 4.0, "assembly limits when prep is fast")
+
+	var upgraded: GameState = GameState.new()
+	simulation.buy_upgrade(upgraded, {"id": "prep", "base_cost": 0.0, "max_level": 1, "effects": {"prep_rate_add": 0.45, "testing_rate_add": 0.45}})
+	_check(is_equal_approx(upgraded.prep_rate, 1.25), "prep upgrade raises prep rate")
+	_check(is_equal_approx(upgraded.testing_rate, 0.95), "testing upgrade raises testing rate")
+
+func _test_quality() -> void:
+	var state: GameState = GameState.new()
+	_check(is_equal_approx(Formulas.effective_quality(state), state.quality), "quality unchanged with no automation")
+
+	state.production_per_second = 2.0
+	state.prep_rate = 2.0
+	state.testing_rate = 1.0
+	_check(is_equal_approx(Formulas.testing_coverage(state), 0.5), "testing coverage is testing rate over throughput")
+	_check(is_equal_approx(Formulas.effective_quality(state), state.quality * 0.9), "untested output lowers quality")
+
+	state.testing_rate = 5.0
+	_check(is_equal_approx(Formulas.testing_coverage(state), 1.0), "coverage caps at 100%")
+
+	state.machine_condition = 0.0
+	var worn_quality: float = Formulas.effective_quality(state)
+	_check(worn_quality < state.quality, "worn machines lower quality")
+
+	var healthy: GameState = GameState.new()
+	healthy.sale_price = 4.0
+	var neglected: GameState = GameState.new()
+	neglected.sale_price = 4.0
+	neglected.production_per_second = 5.0
+	neglected.prep_rate = 5.0
+	neglected.testing_rate = 0.0
+	neglected.machine_condition = 0.0
+	_check(Formulas.demand_per_second(neglected) < Formulas.demand_per_second(healthy), "poor quality reduces demand")
+
 func _test_maintenance() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
 	state.raw_materials = 10000.0
 	state.warehouse_capacity = 100000.0
 	state.production_per_second = 10.0
+	state.prep_rate = 100.0
 	state.awareness = 0.0
 	simulation.advance(state, 60.0, false)
 	_check(state.machine_condition < 1.0, "automated production wears machines")
@@ -189,6 +241,7 @@ func _test_chunked_advance() -> void:
 	state.raw_materials = 100000.0
 	state.warehouse_capacity = 60.0
 	state.production_per_second = 5.0
+	state.prep_rate = 100.0
 	state.sale_price = 1.0
 	state.awareness = 5.0
 	var report: Dictionary = simulation.advance_chunked(state, 3600.0, false)
@@ -200,6 +253,7 @@ func _test_downtime() -> void:
 	var simulation: Simulation = _make_sim()
 	state.raw_materials = 100.0
 	state.production_per_second = 2.0
+	state.prep_rate = 100.0
 	state.production_downtime = 10.0
 	simulation.advance(state, 1.0, false)
 	_check(is_equal_approx(state.raw_materials, 100.0), "downtime halts automated production")
@@ -265,6 +319,8 @@ func _test_save_round_trip() -> void:
 	state.production_downtime = 4.0
 	state.ui_scale = 1.5
 	state.warehouse_capacity = 240.0
+	state.prep_rate = 1.7
+	state.testing_rate = 1.4
 	state.machine_condition = 0.75
 	state.wear_reduction = 0.2
 	state.lifetime_sales_lost = 42.0
@@ -284,6 +340,8 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.production_downtime, 4.0), "downtime restored")
 	_check(is_equal_approx(loaded.ui_scale, 1.5), "ui scale restored")
 	_check(is_equal_approx(loaded.warehouse_capacity, 240.0), "warehouse capacity restored")
+	_check(is_equal_approx(loaded.prep_rate, 1.7), "prep rate restored")
+	_check(is_equal_approx(loaded.testing_rate, 1.4), "testing rate restored")
 	_check(is_equal_approx(loaded.machine_condition, 0.75), "machine condition restored")
 	_check(is_equal_approx(loaded.wear_reduction, 0.2), "wear reduction restored")
 	_check(is_equal_approx(loaded.lifetime_sales_lost, 42.0), "lost sales restored")

@@ -17,6 +17,8 @@ var material_market_timer: float = 0.0
 
 var manual_output: float = 1.0
 var production_per_second: float = 0.0
+var prep_rate: float = 0.8
+var testing_rate: float = 0.5
 var warehouse_capacity: float = 60.0
 var machine_condition: float = 1.0
 var wear_reduction: float = 0.0
@@ -73,6 +75,8 @@ func to_save_data() -> Dictionary:
 		"material_market_timer": material_market_timer,
 		"manual_output": manual_output,
 		"production_per_second": production_per_second,
+		"prep_rate": prep_rate,
+		"testing_rate": testing_rate,
 		"warehouse_capacity": warehouse_capacity,
 		"machine_condition": machine_condition,
 		"wear_reduction": wear_reduction,
@@ -115,6 +119,8 @@ func load_save_data(data: Dictionary) -> void:
 	material_market_timer = float(data.get("material_market_timer", material_market_timer))
 	manual_output = float(data.get("manual_output", manual_output))
 	production_per_second = float(data.get("production_per_second", production_per_second))
+	prep_rate = float(data.get("prep_rate", prep_rate))
+	testing_rate = float(data.get("testing_rate", testing_rate))
 	warehouse_capacity = float(data.get("warehouse_capacity", warehouse_capacity))
 	machine_condition = float(data.get("machine_condition", machine_condition))
 	wear_reduction = float(data.get("wear_reduction", wear_reduction))

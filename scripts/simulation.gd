@@ -53,7 +53,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		state.production_downtime = maxf(0.0, state.production_downtime - delta)
 
 	var space: float = Formulas.warehouse_space(state)
-	var automated_target: float = state.production_per_second * Formulas.machine_efficiency(state) * uptime
+	var automated_target: float = Formulas.automated_throughput(state) * uptime
 	var automated_cells: float = minf(minf(state.raw_materials, space), automated_target)
 	if automated_cells > 0.0:
 		state.raw_materials -= automated_cells
@@ -188,6 +188,8 @@ func _apply_upgrade_effects(state: GameState, definition: Dictionary) -> void:
 	state.trust += float(effects.get("trust_add", 0.0))
 	state.warehouse_capacity += float(effects.get("warehouse_capacity_add", 0.0))
 	state.wear_reduction += float(effects.get("wear_reduction_add", 0.0))
+	state.prep_rate += float(effects.get("prep_rate_add", 0.0))
+	state.testing_rate += float(effects.get("testing_rate_add", 0.0))
 
 func _update_material_market(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
 	state.material_market_timer += delta

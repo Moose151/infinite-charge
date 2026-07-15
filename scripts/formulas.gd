@@ -2,13 +2,28 @@ extends RefCounted
 class_name Formulas
 
 static func demand_per_second(state: GameState) -> float:
-	var fair_price: float = maxf(0.25, state.base_value * state.quality)
+	var quality: float = effective_quality(state)
+	var fair_price: float = maxf(0.25, state.base_value * quality)
 	var price_ratio: float = state.sale_price / fair_price
 	var price_factor: float = pow(price_ratio, -1.35)
 	var trust_factor: float = 1.0 + state.trust * 0.35
 	var security_penalty: float = clampf(effective_risk(state) * 0.55, 0.0, 0.45)
-	var quality_factor: float = clampf(state.quality, 0.25, 4.0)
+	var quality_factor: float = clampf(quality, 0.25, 4.0)
 	return maxf(0.0, 0.7 * state.awareness * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
+
+static func automated_throughput(state: GameState) -> float:
+	return minf(state.production_per_second, state.prep_rate) * machine_efficiency(state)
+
+static func testing_coverage(state: GameState) -> float:
+	var throughput: float = automated_throughput(state)
+	if throughput <= 0.001:
+		return 1.0
+	return clampf(state.testing_rate / throughput, 0.0, 1.0)
+
+static func effective_quality(state: GameState) -> float:
+	var condition_factor: float = 0.8 + 0.2 * clampf(state.machine_condition, 0.0, 1.0)
+	var testing_factor: float = 0.8 + 0.2 * testing_coverage(state)
+	return state.quality * condition_factor * testing_factor
 
 static func effective_risk(state: GameState) -> float:
 	return clampf(state.risk - state.risk_reduction, 0.0, 1.0)
