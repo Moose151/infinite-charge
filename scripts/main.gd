@@ -103,9 +103,9 @@ func _build_ui() -> void:
 	body.add_child(middle_panel)
 	body.add_child(right_panel)
 
-	var left: VBoxContainer = left_panel.get_node("Margin/Content") as VBoxContainer
-	var middle: VBoxContainer = middle_panel.get_node("Margin/Content") as VBoxContainer
-	var right: VBoxContainer = right_panel.get_node("Margin/Content") as VBoxContainer
+	var left: VBoxContainer = left_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var middle: VBoxContainer = middle_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var right: VBoxContainer = right_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 
 	_add_section_heading(left, "Resources")
 	cash_label = _add_label(left)
@@ -326,10 +326,17 @@ func _make_panel(title: String) -> PanelContainer:
 	margin.add_theme_constant_override("margin_bottom", 12)
 	panel.add_child(margin)
 
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.name = "Scroll"
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	margin.add_child(scroll)
+
 	var box: VBoxContainer = VBoxContainer.new()
 	box.name = "Content"
 	box.add_theme_constant_override("separation", 8)
-	margin.add_child(box)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
 
 	var heading: Label = Label.new()
 	heading.text = title

@@ -4,6 +4,13 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.6.3 — 2026-07-15
+
+Viewport fit fix.
+
+- Added internal scrolling to the main Company, Production & Market, and Upgrades & Events panels so controls remain reachable in the Godot F5 window.
+- Increased the default desktop viewport height from 720 to 800 pixels to better fit the current three-column MVP interface.
+
 ## 0.6.2 — 2026-07-15
 
 Interface-scale safety fix.
