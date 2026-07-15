@@ -4,6 +4,13 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.6.4 — 2026-07-15
+
+Navigation clarity fix.
+
+- Replaced nested Godot tab containers with explicit section buttons for Operations, Staff, and Settings.
+- Added real Upgrades and Event Log buttons in the right panel so the event log is a selectable view instead of a heading that looks clickable.
+
 ## 0.6.3 — 2026-07-15
 
 Viewport fit fix.
