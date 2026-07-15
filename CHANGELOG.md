@@ -4,6 +4,15 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.6.1 — 2026-07-15
+
+Garage UI readability pass.
+
+- Added a short garage-operations subtitle to the first screen.
+- Grouped the Company panel into Resources, Statistics, and Contracts sections.
+- Split the dense Production & Market panel into persistent action controls plus Operations, Staff, and Settings tabs.
+- Added section headers and subtle panel styling to improve scanability without changing simulation behavior.
+
 ## 0.6 — 2026-07-15
 
 Employees and energy consumption — Milestone One (Factory Expansion) complete.

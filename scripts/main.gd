@@ -82,6 +82,11 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", 28)
 	main.add_child(title)
 
+	var subtitle: Label = Label.new()
+	subtitle.text = "Garage-stage operations. Cash, cells, risk, and several spreadsheets pretending this is under control."
+	subtitle.add_theme_color_override("font_color", Color(0.68, 0.74, 0.78))
+	main.add_child(subtitle)
+
 	var body: HBoxContainer = HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 12)
@@ -98,17 +103,17 @@ func _build_ui() -> void:
 	var middle: VBoxContainer = middle_panel.get_node("Margin/Content") as VBoxContainer
 	var right: VBoxContainer = right_panel.get_node("Margin/Content") as VBoxContainer
 
+	_add_section_heading(left, "Resources")
 	cash_label = _add_label(left)
 	materials_label = _add_label(left)
 	inventory_label = _add_label(left)
 	material_price_label = _add_label(left)
 	risk_label = _add_label(left)
+
+	_add_section_heading(left, "Statistics")
 	stats_label = _add_label(left)
 
-	var contracts_heading: Label = Label.new()
-	contracts_heading.text = "Contracts"
-	contracts_heading.add_theme_font_size_override("font_size", 18)
-	left.add_child(contracts_heading)
+	_add_section_heading(left, "Contracts")
 
 	contract_label = _add_label(left)
 
@@ -133,6 +138,7 @@ func _build_ui() -> void:
 	offline_report_label.bbcode_enabled = true
 	left.add_child(offline_report_label)
 
+	_add_section_heading(middle, "Actions")
 	var produce_button: Button = Button.new()
 	produce_button.text = "Assemble Cell"
 	produce_button.pressed.connect(func() -> void: simulation.manual_produce(state))
@@ -156,27 +162,34 @@ func _build_ui() -> void:
 	price_slider.value_changed.connect(_on_price_changed)
 	middle.add_child(price_slider)
 
-	demand_label = _add_label(middle)
-	sales_label = _add_label(middle)
-	production_label = _add_label(middle)
-	quality_label = _add_label(middle)
+	var tabs: TabContainer = TabContainer.new()
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	middle.add_child(tabs)
 
-	condition_label = _add_label(middle)
+	var operations_tab: VBoxContainer = _add_tab(tabs, "Operations")
+	var staff_tab: VBoxContainer = _add_tab(tabs, "Staff")
+	var settings_tab: VBoxContainer = _add_tab(tabs, "Settings")
+
+	_add_section_heading(operations_tab, "Market")
+	demand_label = _add_label(operations_tab)
+	sales_label = _add_label(operations_tab)
+	market_label = _add_label(operations_tab)
+
+	_add_section_heading(operations_tab, "Production")
+	production_label = _add_label(operations_tab)
+	quality_label = _add_label(operations_tab)
+
+	condition_label = _add_label(operations_tab)
 	service_button = Button.new()
 	service_button.pressed.connect(func() -> void: simulation.service_machines(state))
-	middle.add_child(service_button)
+	operations_tab.add_child(service_button)
 
-	market_label = _add_label(middle)
-
-	var staff_heading: Label = Label.new()
-	staff_heading.text = "Staff"
-	staff_heading.add_theme_font_size_override("font_size", 18)
-	middle.add_child(staff_heading)
-
+	_add_section_heading(staff_tab, "Stage Staff")
 	for role: String in ["prep", "assembly", "testing"]:
 		var staff_row: HBoxContainer = HBoxContainer.new()
 		staff_row.add_theme_constant_override("separation", 8)
-		middle.add_child(staff_row)
+		staff_tab.add_child(staff_row)
 
 		var staff_label: Label = Label.new()
 		staff_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -193,21 +206,17 @@ func _build_ui() -> void:
 		fire_button.pressed.connect(func() -> void: simulation.fire_worker(state, role))
 		staff_row.add_child(fire_button)
 
-	wage_label = _add_label(middle)
+	wage_label = _add_label(staff_tab)
 
-	var controls_heading: Label = Label.new()
-	controls_heading.text = "Settings"
-	controls_heading.add_theme_font_size_override("font_size", 18)
-	middle.add_child(controls_heading)
-
+	_add_section_heading(settings_tab, "Simulation")
 	pause_button = CheckButton.new()
 	pause_button.text = "Pause simulation"
 	pause_button.toggled.connect(_on_pause_toggled)
-	middle.add_child(pause_button)
+	settings_tab.add_child(pause_button)
 
 	var speed_row: HBoxContainer = HBoxContainer.new()
 	speed_row.add_theme_constant_override("separation", 8)
-	middle.add_child(speed_row)
+	settings_tab.add_child(speed_row)
 
 	var speed_label: Label = Label.new()
 	speed_label.text = "Speed"
@@ -221,9 +230,10 @@ func _build_ui() -> void:
 	speed_option.item_selected.connect(_on_speed_selected)
 	speed_row.add_child(speed_option)
 
+	_add_section_heading(settings_tab, "Saving")
 	var autosave_row: HBoxContainer = HBoxContainer.new()
 	autosave_row.add_theme_constant_override("separation", 8)
-	middle.add_child(autosave_row)
+	settings_tab.add_child(autosave_row)
 
 	var autosave_label: Label = Label.new()
 	autosave_label.text = "Autosave seconds"
@@ -238,7 +248,7 @@ func _build_ui() -> void:
 
 	var scale_row: HBoxContainer = HBoxContainer.new()
 	scale_row.add_theme_constant_override("separation", 8)
-	middle.add_child(scale_row)
+	settings_tab.add_child(scale_row)
 
 	var scale_label: Label = Label.new()
 	scale_label.text = "Interface scale"
@@ -252,7 +262,7 @@ func _build_ui() -> void:
 
 	var offline_row: HBoxContainer = HBoxContainer.new()
 	offline_row.add_theme_constant_override("separation", 8)
-	middle.add_child(offline_row)
+	settings_tab.add_child(offline_row)
 
 	var offline_label: Label = Label.new()
 	offline_label.text = "Offline hours"
@@ -268,8 +278,9 @@ func _build_ui() -> void:
 	var save_button: Button = Button.new()
 	save_button.text = "Manual Save"
 	save_button.pressed.connect(_manual_save)
-	middle.add_child(save_button)
+	settings_tab.add_child(save_button)
 
+	_add_section_heading(right, "Upgrades")
 	var upgrade_list: VBoxContainer = VBoxContainer.new()
 	upgrade_list.add_theme_constant_override("separation", 6)
 	right.add_child(upgrade_list)
@@ -281,6 +292,7 @@ func _build_ui() -> void:
 		upgrade_buttons[str(definition.get("id", ""))] = button
 		upgrade_list.add_child(button)
 
+	_add_section_heading(right, "Event Log")
 	event_log_label = RichTextLabel.new()
 	event_log_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	event_log_label.bbcode_enabled = true
@@ -290,6 +302,17 @@ func _make_panel(title: String) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(280.0, 0.0)
+
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.085, 0.105, 0.12)
+	style.border_color = Color(0.18, 0.24, 0.28)
+	style.set_border_width_all(1)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	panel.add_theme_stylebox_override("panel", style)
 
 	var margin: MarginContainer = MarginContainer.new()
 	margin.name = "Margin"
@@ -307,13 +330,36 @@ func _make_panel(title: String) -> PanelContainer:
 	var heading: Label = Label.new()
 	heading.text = title
 	heading.add_theme_font_size_override("font_size", 18)
+	heading.add_theme_color_override("font_color", Color(0.92, 0.95, 0.96))
 	box.add_child(heading)
 
 	return panel
 
+func _add_tab(parent: TabContainer, title: String) -> VBoxContainer:
+	var scroll: ScrollContainer = ScrollContainer.new()
+	scroll.name = title
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parent.add_child(scroll)
+
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(box)
+	return box
+
+func _add_section_heading(parent: Control, text: String) -> Label:
+	var heading: Label = Label.new()
+	heading.text = text.to_upper()
+	heading.add_theme_font_size_override("font_size", 13)
+	heading.add_theme_color_override("font_color", Color(0.45, 0.72, 0.84))
+	parent.add_child(heading)
+	return heading
+
 func _add_label(parent: Control) -> Label:
 	var label: Label = Label.new()
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.add_theme_color_override("font_color", Color(0.82, 0.87, 0.89))
 	parent.add_child(label)
 	return label
 
