@@ -36,7 +36,7 @@ var decline_contract_button: Button
 var staff_labels: Dictionary = {}
 var wage_label: Label
 
-const UI_SCALES: Array[float] = [1.0, 1.25, 1.5, 1.75, 2.0]
+const UI_SCALES: Array[float] = [1.0]
 
 func _ready() -> void:
 	upgrades = _load_upgrade_data()
@@ -52,6 +52,10 @@ func _ready() -> void:
 	_refresh_ui()
 
 func _process(delta: float) -> void:
+	if Input.is_key_pressed(KEY_CTRL) and Input.is_key_pressed(KEY_0) and not is_equal_approx(state.ui_scale, 1.0):
+		state.ui_scale = 1.0
+		_apply_ui_scale()
+		state.add_event("Interface scale reset. The zoom committee has been stood down.")
 	if not state.simulation_paused:
 		simulation.advance(state, delta * state.simulation_speed)
 	autosave_timer += delta
@@ -391,6 +395,7 @@ func _on_ui_scale_selected(index: int) -> void:
 	state.notify_changed()
 
 func _apply_ui_scale() -> void:
+	state.ui_scale = 1.0
 	get_window().content_scale_factor = state.ui_scale
 
 func _on_offline_limit_changed(value: float) -> void:

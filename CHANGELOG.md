@@ -4,6 +4,14 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.6.2 — 2026-07-15
+
+Interface-scale safety fix.
+
+- Reset oversized saved interface scales to 100% on launch so the game cannot reopen in an unusable zoom state.
+- Temporarily limited the interface-scale option to 100% until responsive scaling has a dedicated pass.
+- Added `Ctrl+0` as an emergency interface-scale reset shortcut.
+
 ## 0.6.1 — 2026-07-15
 
 Garage UI readability pass.
