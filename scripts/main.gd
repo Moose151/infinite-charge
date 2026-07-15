@@ -30,6 +30,9 @@ var ui_scale_option: OptionButton
 var condition_label: Label
 var service_button: Button
 var quality_label: Label
+var contract_label: Label
+var accept_contract_button: Button
+var decline_contract_button: Button
 
 const UI_SCALES: Array[float] = [1.0, 1.25, 1.5, 1.75, 2.0]
 
@@ -99,6 +102,29 @@ func _build_ui() -> void:
 	material_price_label = _add_label(left)
 	risk_label = _add_label(left)
 	stats_label = _add_label(left)
+
+	var contracts_heading: Label = Label.new()
+	contracts_heading.text = "Contracts"
+	contracts_heading.add_theme_font_size_override("font_size", 18)
+	left.add_child(contracts_heading)
+
+	contract_label = _add_label(left)
+
+	var contract_buttons: HBoxContainer = HBoxContainer.new()
+	contract_buttons.add_theme_constant_override("separation", 8)
+	left.add_child(contract_buttons)
+
+	accept_contract_button = Button.new()
+	accept_contract_button.text = "Accept"
+	accept_contract_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	accept_contract_button.pressed.connect(func() -> void: simulation.accept_contract(state))
+	contract_buttons.add_child(accept_contract_button)
+
+	decline_contract_button = Button.new()
+	decline_contract_button.text = "Decline"
+	decline_contract_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	decline_contract_button.pressed.connect(func() -> void: simulation.decline_contract(state))
+	contract_buttons.add_child(decline_contract_button)
 	offline_report_label = RichTextLabel.new()
 	offline_report_label.fit_content = true
 	offline_report_label.scroll_active = false
@@ -368,6 +394,7 @@ func _refresh_ui() -> void:
 		roundi(Formulas.testing_coverage(state) * 100.0)
 	]
 	_update_maintenance_row()
+	_update_contracts_section()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
 	market_label.text = "Estimated margin: $%s/cell\nInventory sell-through: %s cells/sec\nDemand note: lower prices sell faster; quality, trust, and risk also move demand." % [
@@ -396,6 +423,37 @@ func _update_maintenance_row() -> void:
 	else:
 		service_button.text = "Service Machines - $%s" % Formulas.format_number(cost)
 		service_button.disabled = state.cash < cost
+
+func _update_contracts_section() -> void:
+	var has_offer: bool = not state.contract_offer.is_empty()
+	accept_contract_button.visible = has_offer
+	decline_contract_button.visible = has_offer
+	if not state.active_contract.is_empty():
+		var contract: Dictionary = state.active_contract
+		contract_label.text = "Active: %s cells for %s ($%s each)\nDelivered: %s / %s | Time left: %s" % [
+			Formulas.format_number(float(contract.get("quantity", 0.0))),
+			str(contract.get("buyer", "a client")),
+			Formulas.format_number(float(contract.get("price_per_cell", 0.0))),
+			Formulas.format_number(float(contract.get("quantity", 0.0)) - float(contract.get("remaining", 0.0))),
+			Formulas.format_number(float(contract.get("quantity", 0.0))),
+			_format_duration(float(contract.get("time_remaining", 0.0)))
+		]
+	elif has_offer:
+		var offer: Dictionary = state.contract_offer
+		contract_label.text = "Offer from %s:\n%s cells at $%s each (total $%s)\nDeadline once signed: %s | Offer expires: %s" % [
+			str(offer.get("buyer", "a client")),
+			Formulas.format_number(float(offer.get("quantity", 0.0))),
+			Formulas.format_number(float(offer.get("price_per_cell", 0.0))),
+			Formulas.format_number(float(offer.get("quantity", 0.0)) * float(offer.get("price_per_cell", 0.0))),
+			_format_duration(float(offer.get("duration", 0.0))),
+			_format_duration(float(offer.get("expires_in", 0.0)))
+		]
+	else:
+		contract_label.text = "No offers right now. Completed: %d | Missed: %d | Contract revenue: $%s" % [
+			state.lifetime_contracts_completed,
+			state.lifetime_contracts_failed,
+			Formulas.format_number(state.lifetime_contract_revenue)
+		]
 
 func _sync_ui_scale_option() -> void:
 	var selected_index: int = 0

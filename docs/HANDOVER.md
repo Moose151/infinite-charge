@@ -6,7 +6,7 @@ Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-
 
 The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 5, clicking becomes optional as automation scales, and most upgrades max out within the hour. The optimal sale price shifts from ~$4 early (demand-limited) toward $6 late (supply-limited), so the pricing decision stays live throughout the session.
 
-Milestone One is underway. Warehouse capacity and maintenance are in (v0.3): storage caps production until Garage Shelving is bought, machines wear down as automation runs (efficiency 100% → 40%), and servicing costs cash scaled to automation size and wear. Production stages and quality are in (v0.4): prep → assembly → testing, where prep hard-limits throughput and under-tested output lowers effective quality, which feeds demand. Remaining Milestone One systems: employees, energy consumption, first contracts.
+Milestone One is underway. Warehouse capacity and maintenance are in (v0.3): storage caps production until Garage Shelving is bought, machines wear down as automation runs (efficiency 100% → 40%), and servicing costs cash scaled to automation size and wear. Production stages and quality are in (v0.4): prep → assembly → testing, where prep hard-limits throughput and under-tested output lowers effective quality, which feeds demand. First contracts are in (v0.5): periodic local offers at 0.95–1.3× fair value with deadlines, trust rewards for completion, and penalties for failure; contracts pause offline. Remaining Milestone One systems: employees, energy consumption.
 
 The project has been pushed to GitHub:
 
@@ -52,7 +52,7 @@ Avoid starting factories, staff, research trees, contracts, prestige, network ma
 - `scripts/save_manager.gd` writes/reads JSON from `user://save_slot_1.json`.
 - `data/upgrades/garage_upgrades.json` defines current upgrades and effects.
 - `data/events/security_events.json` defines security events: trigger cadence, chance scaling with risk, and per-event type (`cash`, `inventory`, `downtime`), weight, severity range, and message.
-- `tools/run_tests.gd` is the headless test suite (84 checks over Formulas, Simulation actions, security events, downtime, warehouse capacity, maintenance, production stages, quality, chunked offline advance, bankruptcy rescue, save round-trip). Run: `godot --headless --path . --script res://tools/run_tests.gd` (exits non-zero on failure).
+- `tools/run_tests.gd` is the headless test suite (104 checks over Formulas, Simulation actions, security events, downtime, warehouse capacity, maintenance, production stages, quality, contracts, chunked offline advance, bankruptcy rescue, save round-trip). Run: `godot --headless --path . --script res://tools/run_tests.gd` (exits non-zero on failure).
 - `tools/balance_harness.gd` simulates a bot player for an hour at several fixed prices and prints a progression table. Run: `godot --headless --path . --script res://tools/balance_harness.gd`.
 
 Keep simulation behavior out of UI code whenever possible. Future offline progress, tests, automation, and balance tools all depend on `Simulation.advance()` staying independent from the interface.
@@ -87,7 +87,7 @@ The player can:
 ## Recommended Next Steps
 
 1. Human-playtest the first 10 minutes and adjust feel: click cadence, event frequency, message tone, and whether warehouse-full and machine-wear moments read clearly.
-2. Continue Milestone One: first contracts (bulk orders with deadlines vs the spot market), then employees + energy consumption.
+2. Finish Milestone One: employees (hiring to boost stages or reduce risk) and energy consumption (an operating cost that scales with automation).
 3. Consider surfacing wear rate and time-to-empty-warehouse estimates now that production stages add complexity.
 
 ## Balance Changes (2026-07-15)

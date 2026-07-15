@@ -50,6 +50,13 @@ var autosave_interval: float = 10.0
 var offline_limit_seconds: float = 60.0 * 60.0 * 8.0
 var ui_scale: float = 1.0
 
+var contract_offer: Dictionary = {}
+var active_contract: Dictionary = {}
+var contract_timer: float = 0.0
+var lifetime_contracts_completed: int = 0
+var lifetime_contracts_failed: int = 0
+var lifetime_contract_revenue: float = 0.0
+
 var upgrade_levels: Dictionary = {}
 var event_log: Array[String] = []
 var offline_report: Dictionary = {}
@@ -104,6 +111,12 @@ func to_save_data() -> Dictionary:
 		"autosave_interval": autosave_interval,
 		"offline_limit_seconds": offline_limit_seconds,
 		"ui_scale": ui_scale,
+		"contract_offer": contract_offer,
+		"active_contract": active_contract,
+		"contract_timer": contract_timer,
+		"lifetime_contracts_completed": lifetime_contracts_completed,
+		"lifetime_contracts_failed": lifetime_contracts_failed,
+		"lifetime_contract_revenue": lifetime_contract_revenue,
 		"upgrade_levels": upgrade_levels,
 		"event_log": event_log,
 	}
@@ -148,6 +161,12 @@ func load_save_data(data: Dictionary) -> void:
 	autosave_interval = float(data.get("autosave_interval", autosave_interval))
 	offline_limit_seconds = float(data.get("offline_limit_seconds", offline_limit_seconds))
 	ui_scale = float(data.get("ui_scale", ui_scale))
+	contract_offer = data.get("contract_offer", {})
+	active_contract = data.get("active_contract", {})
+	contract_timer = float(data.get("contract_timer", contract_timer))
+	lifetime_contracts_completed = int(data.get("lifetime_contracts_completed", lifetime_contracts_completed))
+	lifetime_contracts_failed = int(data.get("lifetime_contracts_failed", lifetime_contracts_failed))
+	lifetime_contract_revenue = float(data.get("lifetime_contract_revenue", lifetime_contract_revenue))
 	upgrade_levels = data.get("upgrade_levels", {})
 	event_log.clear()
 	for message in data.get("event_log", []):

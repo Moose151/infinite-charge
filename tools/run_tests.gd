@@ -19,6 +19,7 @@ func _init() -> void:
 	_test_lost_sales()
 	_test_chunked_advance()
 	_test_downtime()
+	_test_contracts()
 	_test_offline_advance_has_no_security_events()
 	_test_security_event_effects()
 	_test_bankruptcy_rescue()
@@ -262,6 +263,56 @@ func _test_downtime() -> void:
 	simulation.advance(state, 1.0, false)
 	_check(is_equal_approx(state.raw_materials, 99.0), "partial downtime allows partial production")
 
+func _test_contracts() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+
+	_check(not simulation.accept_contract(state), "accept fails with no offer")
+
+	state.contract_offer = {"buyer": "a test client", "quantity": 10.0, "price_per_cell": 5.0, "duration": 30.0, "expires_in": 60.0}
+	_check(simulation.decline_contract(state), "decline clears offer")
+	_check(state.contract_offer.is_empty(), "offer removed after decline")
+
+	state.contract_offer = {"buyer": "a test client", "quantity": 10.0, "price_per_cell": 5.0, "duration": 30.0, "expires_in": 60.0}
+	_check(simulation.accept_contract(state), "accept converts offer to contract")
+	_check(is_equal_approx(float(state.active_contract["value"]), 50.0), "contract value is quantity times price")
+
+	state.battery_cells = 4.0
+	state.awareness = 0.0
+	state.cash = 0.0
+	simulation.advance(state, 1.0, true)
+	_check(is_equal_approx(state.battery_cells, 0.0), "contract delivery consumes inventory")
+	_check(is_equal_approx(float(state.active_contract["remaining"]), 6.0), "partial delivery tracked")
+	_check(is_equal_approx(state.cash, 0.0), "no payment until completion")
+
+	state.battery_cells = 6.0
+	var trust_before: float = state.trust
+	simulation.advance(state, 1.0, true)
+	_check(state.active_contract.is_empty(), "contract completes when fulfilled")
+	_check(state.cash >= 50.0, "completion pays full value")
+	_check(state.trust > trust_before, "completion builds trust")
+	_check(state.lifetime_contracts_completed == 1, "completion counted")
+
+	state.contract_offer = {"buyer": "a test client", "quantity": 10.0, "price_per_cell": 5.0, "duration": 5.0, "expires_in": 60.0}
+	simulation.accept_contract(state)
+	state.battery_cells = 0.0
+	state.cash = 100.0
+	trust_before = state.trust
+	simulation.advance(state, 6.0, true)
+	_check(state.active_contract.is_empty(), "contract fails past deadline")
+	_check(state.cash < 100.0, "failure charges penalty")
+	_check(state.trust < trust_before, "failure costs trust")
+	_check(state.lifetime_contracts_failed == 1, "failure counted")
+
+	state.contract_offer = {"buyer": "a test client", "quantity": 10.0, "price_per_cell": 5.0, "duration": 30.0, "expires_in": 2.0}
+	simulation.advance(state, 3.0, true)
+	_check(state.contract_offer.is_empty(), "unanswered offer expires")
+
+	var paused: GameState = GameState.new()
+	paused.contract_offer = {"buyer": "a test client", "quantity": 10.0, "price_per_cell": 5.0, "duration": 30.0, "expires_in": 10.0}
+	simulation.advance(paused, 60.0, false)
+	_check(not paused.contract_offer.is_empty(), "contracts pause during offline advance")
+
 func _test_offline_advance_has_no_security_events() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
@@ -324,6 +375,8 @@ func _test_save_round_trip() -> void:
 	state.machine_condition = 0.75
 	state.wear_reduction = 0.2
 	state.lifetime_sales_lost = 42.0
+	state.active_contract = {"buyer": "a test client", "quantity": 10.0, "remaining": 3.0, "price_per_cell": 5.0, "value": 50.0, "time_remaining": 20.0}
+	state.lifetime_contracts_completed = 7
 	state.upgrade_levels = {"better_tools": 2}
 	state.lifetime_revenue = 999.0
 	state.add_event("Round trip initiated.")
@@ -345,6 +398,8 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.machine_condition, 0.75), "machine condition restored")
 	_check(is_equal_approx(loaded.wear_reduction, 0.2), "wear reduction restored")
 	_check(is_equal_approx(loaded.lifetime_sales_lost, 42.0), "lost sales restored")
+	_check(is_equal_approx(float(loaded.active_contract.get("remaining", 0.0)), 3.0), "active contract restored")
+	_check(loaded.lifetime_contracts_completed == 7, "contract stats restored")
 	_check(int(loaded.upgrade_levels.get("better_tools", 0)) == 2, "upgrade levels restored")
 	_check(is_equal_approx(loaded.lifetime_revenue, 999.0), "stats restored")
 	_check(loaded.event_log.size() > 0 and loaded.event_log[0] == "Round trip initiated.", "event log restored")

@@ -3,6 +3,17 @@ class_name Simulation
 
 const MATERIAL_MARKET_PERIOD: float = 18.0
 const SECURITY_EVENTS_PATH: String = "res://data/events/security_events.json"
+const CONTRACT_OFFER_PERIOD: float = 170.0
+const CONTRACT_OFFER_LIFETIME: float = 60.0
+
+const CONTRACT_BUYERS: Array[String] = [
+	"the Municipal Parks Department",
+	"a regional drone hobbyist collective",
+	"the neighbourhood watch, recently motorised",
+	"a startup that pivoted to flashlights",
+	"the community theatre's lighting committee",
+	"a very confident camping supply store",
+]
 
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var security_event_period: float = 40.0
@@ -65,6 +76,9 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 	elif allow_events and automated_target > 0.0 and space <= 0.0 and state.raw_materials > 0.0:
 		if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
 			state.add_event("Warehouse full. Automation is stacking cells vertically and hoping.")
+
+	if allow_events:
+		_update_contracts(state, delta, report)
 
 	var demanded_cells: float = state.demand_per_second * delta
 	var sellable_cells: float = minf(state.battery_cells, demanded_cells)
@@ -144,6 +158,90 @@ func buy_materials(state: GameState, quantity: float) -> bool:
 	state.raw_materials += quantity
 	state.lifetime_materials_bought += quantity
 	state.add_event("Purchased %s material units for $%s." % [Formulas.format_number(quantity), Formulas.format_number(cost)])
+	return true
+
+func _update_contracts(state: GameState, delta: float, report: Dictionary) -> void:
+	if not state.contract_offer.is_empty():
+		state.contract_offer["expires_in"] = float(state.contract_offer.get("expires_in", 0.0)) - delta
+		if float(state.contract_offer["expires_in"]) <= 0.0:
+			state.contract_offer = {}
+			state.add_event("The contract offer has lapsed. The client has chosen a competitor, or possibly a nap.")
+
+	if not state.active_contract.is_empty():
+		var remaining: float = float(state.active_contract.get("remaining", 0.0))
+		var delivered: float = minf(state.battery_cells, remaining)
+		if delivered > 0.0:
+			state.battery_cells -= delivered
+			state.lifetime_cells_sold += delivered
+			state.active_contract["remaining"] = remaining - delivered
+		if float(state.active_contract["remaining"]) <= 0.0001:
+			var value: float = float(state.active_contract.get("value", 0.0))
+			state.cash += value
+			state.lifetime_revenue += value
+			state.lifetime_contract_revenue += value
+			state.lifetime_contracts_completed += 1
+			state.trust = minf(state.trust + 0.01, 1.0)
+			report["revenue"] = float(report["revenue"]) + value
+			state.add_event("Contract fulfilled for $%s. The client says the batteries 'arrived', which Legal counts as praise." % Formulas.format_number(value))
+			state.active_contract = {}
+		else:
+			state.active_contract["time_remaining"] = float(state.active_contract.get("time_remaining", 0.0)) - delta
+			if float(state.active_contract["time_remaining"]) <= 0.0:
+				var value_failed: float = float(state.active_contract.get("value", 0.0))
+				var penalty: float = minf(state.cash, value_failed * 0.1)
+				state.cash -= penalty
+				state.lifetime_contracts_failed += 1
+				state.trust = maxf(state.trust - 0.06, -0.4)
+				state.add_event("Contract missed. Penalty paid: $%s. The client's review contains the word 'nevertheless'." % Formulas.format_number(penalty))
+				state.active_contract = {}
+
+	if state.contract_offer.is_empty() and state.active_contract.is_empty():
+		state.contract_timer += delta
+		if state.contract_timer >= CONTRACT_OFFER_PERIOD:
+			state.contract_timer = 0.0
+			state.contract_offer = _generate_contract_offer(state)
+			state.add_event("Contract offer from %s: %s cells at $%s each. They sound serious." % [
+				str(state.contract_offer["buyer"]),
+				Formulas.format_number(float(state.contract_offer["quantity"])),
+				Formulas.format_number(float(state.contract_offer["price_per_cell"]))
+			])
+
+func _generate_contract_offer(state: GameState) -> Dictionary:
+	var rate: float = maxf(0.3, Formulas.automated_throughput(state) + 0.4)
+	var quantity: float = ceilf(rate * rng.randf_range(50.0, 120.0))
+	var fair: float = maxf(0.25, state.base_value * Formulas.effective_quality(state))
+	var price_per_cell: float = snappedf(fair * rng.randf_range(0.95, 1.3), 0.01)
+	var duration: float = ceilf((quantity / rate) * rng.randf_range(1.4, 1.9))
+	return {
+		"buyer": CONTRACT_BUYERS.pick_random(),
+		"quantity": quantity,
+		"price_per_cell": price_per_cell,
+		"duration": duration,
+		"expires_in": CONTRACT_OFFER_LIFETIME,
+	}
+
+func accept_contract(state: GameState) -> bool:
+	if state.contract_offer.is_empty() or not state.active_contract.is_empty():
+		return false
+	var quantity: float = float(state.contract_offer.get("quantity", 0.0))
+	var price: float = float(state.contract_offer.get("price_per_cell", 0.0))
+	state.active_contract = {
+		"buyer": state.contract_offer.get("buyer", "an anonymous client"),
+		"quantity": quantity,
+		"remaining": quantity,
+		"price_per_cell": price,
+		"value": quantity * price,
+		"time_remaining": float(state.contract_offer.get("duration", 60.0)),
+	}
+	state.contract_offer = {}
+	state.add_event("Contract signed with %s. Legal has aligned the fonts." % str(state.active_contract["buyer"]))
+	return true
+
+func decline_contract(state: GameState) -> bool:
+	if state.contract_offer.is_empty():
+		return false
+	state.contract_offer = {}
+	state.add_event("Offer declined. The client has been wished 'all the best' at market rates.")
 	return true
 
 func service_machines(state: GameState) -> bool:

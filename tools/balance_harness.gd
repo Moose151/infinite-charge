@@ -57,6 +57,17 @@ func _run_playthrough(sale_price: float) -> void:
 			if batch >= 1.0:
 				simulation.buy_materials(state, batch)
 
+		# Accept contracts the current production rate can plausibly meet.
+		if not state.contract_offer.is_empty():
+			var rate: float = Formulas.automated_throughput(state) + CLICKS_PER_SECOND * state.manual_output * 0.5
+			var needed: float = float(state.contract_offer.get("quantity", 0.0)) - state.battery_cells
+			var feasible: bool = needed <= rate * float(state.contract_offer.get("duration", 0.0)) * 0.8
+			var worthwhile: bool = float(state.contract_offer.get("price_per_cell", 0.0)) >= state.sale_price
+			if feasible and worthwhile:
+				simulation.accept_contract(state)
+			else:
+				simulation.decline_contract(state)
+
 		# Service machines before wear eats too much output.
 		if state.machine_condition < 0.7 and state.cash >= Formulas.service_cost(state) + 20.0:
 			simulation.service_machines(state)
@@ -103,13 +114,16 @@ func _run_playthrough(sale_price: float) -> void:
 		var id: String = str(definition.get("id", ""))
 		if int(state.upgrade_levels.get(id, 0)) >= int(definition.get("max_level", 1)):
 			maxed += 1
-	print("Summary: revenue $%s | security losses $%s | first automation at %.0fs | upgrades bought %d | maxed %d/%d" % [
+	print("Summary: revenue $%s | security losses $%s | first automation at %.0fs | upgrades bought %d | maxed %d/%d | contracts %d done / %d missed ($%s)" % [
 		Formulas.format_number(state.lifetime_revenue),
 		Formulas.format_number(state.lifetime_security_losses),
 		first_automation_at,
 		upgrades_bought,
 		maxed,
-		upgrades.size()
+		upgrades.size(),
+		state.lifetime_contracts_completed,
+		state.lifetime_contracts_failed,
+		Formulas.format_number(state.lifetime_contract_revenue)
 	])
 
 func _load_upgrades() -> Array[Dictionary]:

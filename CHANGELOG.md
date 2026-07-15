@@ -4,6 +4,18 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.5 — 2026-07-15
+
+First contracts (Milestone One continues).
+
+- Local contract offers arrive every ~3 minutes while no contract is pending: deliver N cells within a deadline for a fixed price per cell. Offers expire in 60 seconds if ignored.
+- Offer prices range 0.95–1.3× current fair value, so some offers are bad deals — reading the margin is the point.
+- Deliveries pull from inventory ahead of spot sales; payment lands in full on completion. Completion builds trust (which feeds demand); missing the deadline costs a 10% penalty and trust.
+- Contracts pause entirely during offline progress — no waking up to failed deadlines.
+- Contracts section in the Company panel with offer details, accept/decline, delivery progress, and lifetime stats.
+- Harness bot evaluates feasibility and margin before accepting; at the default price, contracts contribute ~30% of first-hour revenue ($44k of $141k, 19 completed).
+- Test suite extended to 104 checks.
+
 ## 0.4 — 2026-07-15
 
 Production stages and product quality (Milestone One continues).
