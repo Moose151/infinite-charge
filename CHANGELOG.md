@@ -4,6 +4,15 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.10 — 2026-07-23
+
+Competitor pressure — another garage has discovered commerce.
+
+- Added Volt & Sons, a lightweight local competitor whose standard-cell price and quality drift every 45 seconds.
+- Competitor value now modifies demand by customer sensitivity: budget households react more strongly, while specialists are less easily diverted by price positioning.
+- Added a live competitor comparison and plain-language market position to the Price Desk.
+- Persisted competitor state and added headless coverage for competitive strength, segment sensitivity, market updates, event messages, and save/load.
+
 ## 0.9 — 2026-07-23
 
 Advertising channels — awareness now comes with an invoice and an intended audience.

@@ -11,6 +11,7 @@ func _init() -> void:
 	_test_customer_segments()
 	_test_multiple_products()
 	_test_advertising_channels()
+	_test_competitors()
 	_test_manual_production()
 	_test_material_buying()
 	_test_upgrades()
@@ -146,6 +147,27 @@ func _test_advertising_channels() -> void:
 	simulation.advance(state, 1.0, false)
 	_check(not bool(state.advertising_channels["neighbourhood_flyers"]), "unaffordable campaigns pause")
 	_check(not simulation.set_advertising_channel(state, "not_a_channel", true), "unknown advertising channel rejected")
+
+func _test_competitors() -> void:
+	var state: GameState = GameState.new()
+	state.competitor_price = 8.0
+	state.competitor_quality = 0.8
+	var weak_competitor_demand: float = Formulas.demand_per_second(state)
+	state.competitor_price = 2.5
+	state.competitor_quality = 1.3
+	var strong_competitor_demand: float = Formulas.demand_per_second(state)
+	_check(weak_competitor_demand > strong_competitor_demand, "strong competitor reduces player demand")
+	_check(Formulas.competitor_demand_factor(state, "standard", 1.8) < Formulas.competitor_demand_factor(state, "standard", 0.7), "price-sensitive segments react more to strong competition")
+
+	var simulation: Simulation = _make_sim()
+	state.awareness = 0.0
+	state.competitor_price = 5.0
+	state.competitor_market_timer = Simulation.COMPETITOR_MARKET_PERIOD - 1.0
+	var old_price: float = state.competitor_price
+	var report: Dictionary = simulation.advance(state, 2.0, true)
+	_check(int(report["competitor_events"]) == 1, "competitor market updates on schedule")
+	_check(not is_equal_approx(state.competitor_price, old_price), "competitor price drifts")
+	_check(not state.event_log.is_empty() and state.event_log[0].contains(state.competitor_name), "competitor move reaches company log")
 
 func _test_manual_production() -> void:
 	var state: GameState = GameState.new()
@@ -521,6 +543,10 @@ func _test_save_round_trip() -> void:
 	state.lifetime_wages_paid = 66.0
 	state.advertising_channels["business_directory"] = true
 	state.lifetime_advertising_spend = 77.0
+	state.competitor_name = "Test Power Ltd"
+	state.competitor_price = 6.25
+	state.competitor_quality = 1.2
+	state.competitor_market_timer = 12.0
 	state.upgrade_levels = {"better_tools": 2}
 	state.lifetime_revenue = 999.0
 	state.add_event("Round trip initiated.")
@@ -553,6 +579,10 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.lifetime_wages_paid, 66.0), "wages stat restored")
 	_check(bool(loaded.advertising_channels.get("business_directory", false)), "advertising channel restored")
 	_check(is_equal_approx(loaded.lifetime_advertising_spend, 77.0), "advertising spend restored")
+	_check(loaded.competitor_name == "Test Power Ltd", "competitor name restored")
+	_check(is_equal_approx(loaded.competitor_price, 6.25), "competitor price restored")
+	_check(is_equal_approx(loaded.competitor_quality, 1.2), "competitor quality restored")
+	_check(is_equal_approx(loaded.competitor_market_timer, 12.0), "competitor timer restored")
 	_check(int(loaded.upgrade_levels.get("better_tools", 0)) == 2, "upgrade levels restored")
 	_check(is_equal_approx(loaded.lifetime_revenue, 999.0), "stats restored")
 	_check(loaded.event_log.size() > 0 and loaded.event_log[0] == "Round trip initiated.", "event log restored")

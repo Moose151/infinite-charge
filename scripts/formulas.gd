@@ -69,15 +69,25 @@ static func customer_segment_demand(state: GameState, product_id: String = "stan
 		if is_premium:
 			product_affinity = {"households": 0.35, "businesses": 0.65, "specialists": 1.8}.get(str(definition["id"]), 1.0)
 		var channel_boost: float = advertising_boost_for_segment(state, str(definition["id"]))
+		var competitor_factor: float = competitor_demand_factor(state, product_id, float(definition["price_sensitivity"]))
 		var price_factor: float = pow(price_ratio, -float(definition["price_sensitivity"]))
 		var quality_factor: float = pow(clampf(quality, 0.25, 4.0), float(definition["quality_sensitivity"]))
-		var demand: float = maxf(0.0, 0.7 * state.awareness * (1.0 + channel_boost) * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
+		var demand: float = maxf(0.0, 0.7 * state.awareness * (1.0 + channel_boost) * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty) * competitor_factor)
 		results.append({
 			"id": definition["id"],
 			"name": definition["name"],
 			"demand": demand,
 		})
 	return results
+
+static func competitor_demand_factor(state: GameState, product_id: String, price_sensitivity: float) -> float:
+	var is_premium: bool = product_id == "premium"
+	var our_price: float = state.premium_sale_price if is_premium else state.sale_price
+	var our_quality: float = effective_quality(state) * (1.25 if is_premium else 1.0)
+	var competitor_price: float = state.competitor_price * (1.7 if is_premium else 1.0)
+	var our_value_cost: float = our_price / maxf(0.25, our_quality)
+	var competitor_value_cost: float = competitor_price / maxf(0.25, state.competitor_quality)
+	return clampf(pow(competitor_value_cost / maxf(0.05, our_value_cost), price_sensitivity * 0.35), 0.55, 1.45)
 
 static func advertising_boost_for_segment(state: GameState, segment_id: String) -> float:
 	var boost: float = 0.0

@@ -38,6 +38,10 @@ var advertising_channels: Dictionary = {
 	"specialist_newsletter": false,
 }
 var lifetime_advertising_spend: float = 0.0
+var competitor_name: String = "Volt & Sons"
+var competitor_price: float = 4.5
+var competitor_quality: float = 0.95
+var competitor_market_timer: float = 0.0
 var quality: float = 1.0
 var base_value: float = 4.0
 var material_discount: float = 0.0
@@ -116,6 +120,10 @@ func to_save_data() -> Dictionary:
 		"awareness": awareness,
 		"advertising_channels": advertising_channels,
 		"lifetime_advertising_spend": lifetime_advertising_spend,
+		"competitor_name": competitor_name,
+		"competitor_price": competitor_price,
+		"competitor_quality": competitor_quality,
+		"competitor_market_timer": competitor_market_timer,
 		"quality": quality,
 		"base_value": base_value,
 		"material_discount": material_discount,
@@ -187,6 +195,10 @@ func load_save_data(data: Dictionary) -> void:
 	for channel_id: String in advertising_channels:
 		advertising_channels[channel_id] = bool(loaded_channels.get(channel_id, false))
 	lifetime_advertising_spend = float(data.get("lifetime_advertising_spend", lifetime_advertising_spend))
+	competitor_name = str(data.get("competitor_name", competitor_name))
+	competitor_price = float(data.get("competitor_price", competitor_price))
+	competitor_quality = float(data.get("competitor_quality", competitor_quality))
+	competitor_market_timer = float(data.get("competitor_market_timer", competitor_market_timer))
 	quality = float(data.get("quality", quality))
 	base_value = float(data.get("base_value", base_value))
 	material_discount = float(data.get("material_discount", material_discount))

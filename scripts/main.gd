@@ -16,6 +16,7 @@ var demand_label: Label
 var sales_label: Label
 var production_label: Label
 var market_label: Label
+var competitor_label: Label
 var material_price_label: Label
 var risk_label: Label
 var stats_label: Label
@@ -175,6 +176,7 @@ func _build_ui() -> void:
 	demand_label = _add_label(price_card)
 	sales_label = _add_label(price_card)
 	market_label = _add_label(price_card)
+	competitor_label = _add_label(price_card)
 
 	var resources_card: VBoxContainer = _make_card(left, "Stockroom")
 	cash_label = _add_label(resources_card)
@@ -599,6 +601,15 @@ func _refresh_ui() -> void:
 		Formulas.format_number(estimated_margin),
 		Formulas.format_number(Formulas.energy_cost_per_cell(state)),
 		Formulas.format_number(sell_through)
+	]
+	var competitor_factor: float = Formulas.competitor_demand_factor(state, "standard", 1.2)
+	var position: String = "advantage" if competitor_factor > 1.05 else ("pressure" if competitor_factor < 0.95 else "roughly even")
+	competitor_label.text = "Competitor: %s — $%s/cell, %.2f quality\nMarket position: %s (%d%% demand effect for a typical buyer)" % [
+		state.competitor_name,
+		Formulas.format_number(state.competitor_price),
+		state.competitor_quality,
+		position,
+		roundi((competitor_factor - 1.0) * 100.0)
 	]
 	_update_upgrade_buttons()
 	_update_event_log()

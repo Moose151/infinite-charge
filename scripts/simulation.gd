@@ -6,6 +6,7 @@ const SECURITY_EVENTS_PATH: String = "res://data/events/security_events.json"
 const CONTRACT_OFFER_PERIOD: float = 170.0
 const CONTRACT_OFFER_LIFETIME: float = 60.0
 const PREMIUM_PRODUCT_UNLOCK_COST: float = 350.0
+const COMPETITOR_MARKET_PERIOD: float = 45.0
 
 const CONTRACT_BUYERS: Array[String] = [
 	"the Municipal Parks Department",
@@ -55,6 +56,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		"energy_cost": 0.0,
 		"wages_paid": 0.0,
 		"advertising_cost": 0.0,
+		"competitor_events": 0,
 		"market_events": 0,
 		"security_events": 0,
 	}
@@ -126,6 +128,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 
 	_update_material_market(state, delta, allow_events, report)
 	_update_energy_market(state, delta, allow_events)
+	_update_competitor_market(state, delta, allow_events, report)
 	_update_security_events(state, delta, allow_events, report)
 	_check_bankruptcy_rescue(state, allow_events)
 	state.notify_changed()
@@ -151,6 +154,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		"materials_consumed": 0.0,
 		"security_losses": 0.0,
 		"advertising_cost": 0.0,
+		"competitor_events": 0,
 		"market_events": 0,
 		"security_events": 0,
 	}
@@ -161,7 +165,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		var report: Dictionary = advance(state, step, allow_events)
 		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost"]:
 			aggregate[key] = float(aggregate[key]) + float(report[key])
-		for key: String in ["market_events", "security_events"]:
+		for key: String in ["market_events", "security_events", "competitor_events"]:
 			aggregate[key] = int(aggregate[key]) + int(report[key])
 	return aggregate
 
@@ -429,6 +433,20 @@ func _update_material_market(state: GameState, delta: float, allow_events: bool,
 		if allow_events and absf(state.material_price - old_price) >= 0.04:
 			var direction: String = "rose" if state.material_price > old_price else "fell"
 			state.add_event("Material spot price %s to $%s. Procurement has updated the spreadsheet." % [direction, Formulas.format_number(state.material_price)])
+
+func _update_competitor_market(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
+	state.competitor_market_timer += delta
+	while state.competitor_market_timer >= COMPETITOR_MARKET_PERIOD:
+		state.competitor_market_timer -= COMPETITOR_MARKET_PERIOD
+		state.competitor_price = clampf(state.competitor_price * (1.0 + rng.randf_range(-0.12, 0.12)), 2.5, 9.0)
+		state.competitor_quality = clampf(state.competitor_quality + rng.randf_range(-0.04, 0.04), 0.75, 1.35)
+		report["competitor_events"] = int(report["competitor_events"]) + 1
+		if allow_events:
+			state.add_event("%s revised its offer to $%s at %.2f quality. Competitive Intelligence used binoculars." % [
+				state.competitor_name,
+				Formulas.format_number(state.competitor_price),
+				state.competitor_quality
+			])
 
 func _update_security_events(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
 	if not allow_events or security_events.is_empty():
