@@ -1,15 +1,58 @@
 extends RefCounted
 class_name Formulas
 
-static func demand_per_second(state: GameState) -> float:
-	var quality: float = effective_quality(state)
-	var fair_price: float = maxf(0.25, state.base_value * quality)
-	var price_ratio: float = state.sale_price / fair_price
-	var price_factor: float = pow(price_ratio, -1.35)
+const CUSTOMER_SEGMENTS: Array[Dictionary] = [
+	{
+		"id": "households",
+		"name": "Budget households",
+		"share": 0.50,
+		"price_sensitivity": 1.80,
+		"quality_sensitivity": 0.55,
+	},
+	{
+		"id": "businesses",
+		"name": "Local businesses",
+		"share": 0.35,
+		"price_sensitivity": 1.20,
+		"quality_sensitivity": 1.10,
+	},
+	{
+		"id": "specialists",
+		"name": "Specialist buyers",
+		"share": 0.15,
+		"price_sensitivity": 0.70,
+		"quality_sensitivity": 1.80,
+	},
+]
+
+static func demand_per_second(state: GameState, product_id: String = "standard") -> float:
+	var total: float = 0.0
+	for segment: Dictionary in customer_segment_demand(state, product_id):
+		total += float(segment["demand"])
+	return total
+
+static func customer_segment_demand(state: GameState, product_id: String = "standard") -> Array[Dictionary]:
+	var is_premium: bool = product_id == "premium"
+	var quality: float = effective_quality(state) * (1.25 if is_premium else 1.0)
+	var sale_price: float = state.premium_sale_price if is_premium else state.sale_price
+	var base_value: float = state.base_value * (1.75 if is_premium else 1.0)
+	var price_ratio: float = maxf(0.05, sale_price / maxf(0.25, base_value))
 	var trust_factor: float = 1.0 + state.trust * 0.35
 	var security_penalty: float = clampf(effective_risk(state) * 0.55, 0.0, 0.45)
-	var quality_factor: float = clampf(quality, 0.25, 4.0)
-	return maxf(0.0, 0.7 * state.awareness * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
+	var results: Array[Dictionary] = []
+	for definition: Dictionary in CUSTOMER_SEGMENTS:
+		var product_affinity: float = 1.0
+		if is_premium:
+			product_affinity = {"households": 0.35, "businesses": 0.65, "specialists": 1.8}.get(str(definition["id"]), 1.0)
+		var price_factor: float = pow(price_ratio, -float(definition["price_sensitivity"]))
+		var quality_factor: float = pow(clampf(quality, 0.25, 4.0), float(definition["quality_sensitivity"]))
+		var demand: float = maxf(0.0, 0.7 * state.awareness * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
+		results.append({
+			"id": definition["id"],
+			"name": definition["name"],
+			"demand": demand,
+		})
+	return results
 
 const WORKER_STAGE_RATE: float = 0.4
 const WORKER_WAGE_PER_SECOND: float = 0.35
@@ -75,7 +118,10 @@ static func service_cost(state: GameState) -> float:
 	return 25.0 + 60.0 * state.production_per_second * (1.0 - clampf(state.machine_condition, 0.0, 1.0))
 
 static func warehouse_space(state: GameState) -> float:
-	return maxf(0.0, state.warehouse_capacity - state.battery_cells)
+	return maxf(0.0, state.warehouse_capacity - state.battery_cells - state.premium_cells)
+
+static func product_material_cost(product_id: String) -> float:
+	return 1.5 if product_id == "premium" else 1.0
 
 static func upgrade_cost(definition: Dictionary, level: int) -> float:
 	var base_cost: float = float(definition.get("base_cost", 1.0))

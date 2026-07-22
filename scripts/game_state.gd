@@ -12,6 +12,10 @@ var cash: float = 25.0
 var raw_materials: float = 10.0
 var battery_cells: float = 0.0
 var sale_price: float = 4.0
+var premium_cells: float = 0.0
+var premium_sale_price: float = 8.0
+var premium_product_unlocked: bool = false
+var active_product: String = "standard"
 var material_price: float = 1.0
 var material_market_timer: float = 0.0
 
@@ -85,6 +89,10 @@ func to_save_data() -> Dictionary:
 		"raw_materials": raw_materials,
 		"battery_cells": battery_cells,
 		"sale_price": sale_price,
+		"premium_cells": premium_cells,
+		"premium_sale_price": premium_sale_price,
+		"premium_product_unlocked": premium_product_unlocked,
+		"active_product": active_product,
 		"material_price": material_price,
 		"material_market_timer": material_market_timer,
 		"manual_output": manual_output,
@@ -142,6 +150,14 @@ func load_save_data(data: Dictionary) -> void:
 	raw_materials = float(data.get("raw_materials", raw_materials))
 	battery_cells = float(data.get("battery_cells", battery_cells))
 	sale_price = float(data.get("sale_price", sale_price))
+	premium_cells = float(data.get("premium_cells", premium_cells))
+	premium_sale_price = float(data.get("premium_sale_price", premium_sale_price))
+	premium_product_unlocked = bool(data.get("premium_product_unlocked", premium_product_unlocked))
+	active_product = str(data.get("active_product", active_product))
+	if active_product != "standard" and active_product != "premium":
+		active_product = "standard"
+	if active_product == "premium" and not premium_product_unlocked:
+		active_product = "standard"
 	material_price = float(data.get("material_price", material_price))
 	material_market_timer = float(data.get("material_market_timer", material_market_timer))
 	manual_output = float(data.get("manual_output", manual_output))

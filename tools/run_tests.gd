@@ -8,6 +8,8 @@ var checks: int = 0
 
 func _init() -> void:
 	_test_formulas()
+	_test_customer_segments()
+	_test_multiple_products()
 	_test_manual_production()
 	_test_material_buying()
 	_test_upgrades()
@@ -66,6 +68,63 @@ func _test_formulas() -> void:
 	_check(Formulas.format_number(1500000.0) == "1.50M", "format millions")
 	_check(Formulas.format_number(2500.0) == "2.50k", "format thousands")
 	_check(Formulas.format_number(3.14159) == "3.14", "format small numbers")
+
+func _segment_demand(segments: Array[Dictionary], id: String) -> float:
+	for segment: Dictionary in segments:
+		if str(segment["id"]) == id:
+			return float(segment["demand"])
+	return 0.0
+
+func _test_customer_segments() -> void:
+	var state: GameState = GameState.new()
+	state.sale_price = state.base_value
+	var baseline: Array[Dictionary] = Formulas.customer_segment_demand(state)
+	_check(baseline.size() == 3, "three customer segments contribute to demand")
+	var summed: float = 0.0
+	for segment: Dictionary in baseline:
+		summed += float(segment["demand"])
+	_check(is_equal_approx(summed, Formulas.demand_per_second(state)), "segment demand sums to total demand")
+
+	state.sale_price = state.base_value * 2.0
+	var expensive: Array[Dictionary] = Formulas.customer_segment_demand(state)
+	var household_retention: float = _segment_demand(expensive, "households") / _segment_demand(baseline, "households")
+	var specialist_retention: float = _segment_demand(expensive, "specialists") / _segment_demand(baseline, "specialists")
+	_check(specialist_retention > household_retention, "specialists tolerate high prices better than households")
+
+	state.sale_price = state.base_value
+	state.quality = 1.5
+	var high_quality: Array[Dictionary] = Formulas.customer_segment_demand(state)
+	var household_quality_gain: float = _segment_demand(high_quality, "households") / _segment_demand(baseline, "households")
+	var specialist_quality_gain: float = _segment_demand(high_quality, "specialists") / _segment_demand(baseline, "specialists")
+	_check(specialist_quality_gain > household_quality_gain, "specialists respond more strongly to quality")
+
+func _test_multiple_products() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.cash = Simulation.PREMIUM_PRODUCT_UNLOCK_COST
+	_check(simulation.unlock_premium_product(state), "premium product can be unlocked")
+	_check(state.premium_product_unlocked, "premium unlock stored")
+	_check(state.active_product == "premium", "new product becomes active")
+	_check(is_equal_approx(state.cash, 0.0), "premium design charges unlock cost")
+
+	state.manual_output = 2.0
+	state.raw_materials = 3.0
+	_check(simulation.manual_produce(state), "premium cells can be produced manually")
+	_check(is_equal_approx(state.premium_cells, 2.0), "premium stock is separate")
+	_check(is_equal_approx(state.raw_materials, 0.0), "premium cells consume extra material")
+	_check(is_equal_approx(Formulas.warehouse_space(state), state.warehouse_capacity - 2.0), "products share warehouse space")
+
+	state.premium_sale_price = 2.0
+	state.cash = 0.0
+	simulation.advance(state, 1.0, false)
+	_check(state.premium_cells < 2.0, "premium inventory sells automatically")
+	_check(state.cash > 0.0, "premium sales earn revenue")
+	_check(state.sales_per_second > 0.0, "sales rate includes premium sales")
+
+	state.premium_sale_price = 8.0
+	var premium_segments: Array[Dictionary] = Formulas.customer_segment_demand(state, "premium")
+	_check(_segment_demand(premium_segments, "specialists") > _segment_demand(premium_segments, "households"), "premium cells skew toward specialists")
+	_check(simulation.select_product(state, "standard"), "production can switch back to standard")
 
 func _test_manual_production() -> void:
 	var state: GameState = GameState.new()
@@ -418,6 +477,10 @@ func _test_save_round_trip() -> void:
 	state.raw_materials = 67.0
 	state.battery_cells = 8.0
 	state.sale_price = 5.5
+	state.premium_cells = 12.0
+	state.premium_sale_price = 9.5
+	state.premium_product_unlocked = true
+	state.active_product = "premium"
 	state.manual_output = 3.0
 	state.production_per_second = 1.25
 	state.production_downtime = 4.0
@@ -448,6 +511,9 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.cash, 123.45), "cash restored")
 	_check(is_equal_approx(loaded.raw_materials, 67.0), "materials restored")
 	_check(is_equal_approx(loaded.sale_price, 5.5), "price restored")
+	_check(is_equal_approx(loaded.premium_cells, 12.0), "premium inventory restored")
+	_check(is_equal_approx(loaded.premium_sale_price, 9.5), "premium price restored")
+	_check(loaded.premium_product_unlocked and loaded.active_product == "premium", "premium product state restored")
 	_check(is_equal_approx(loaded.production_downtime, 4.0), "downtime restored")
 	_check(is_equal_approx(loaded.ui_scale, 1.5), "ui scale restored")
 	_check(is_equal_approx(loaded.warehouse_capacity, 240.0), "warehouse capacity restored")

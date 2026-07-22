@@ -22,6 +22,13 @@ var stats_label: Label
 var event_log_label: RichTextLabel
 var offline_report_label: RichTextLabel
 var price_slider: HSlider
+var premium_price_slider: HSlider
+var premium_price_label: Label
+var premium_demand_label: Label
+var premium_inventory_label: Label
+var unlock_product_button: Button
+var standard_product_button: Button
+var premium_product_button: Button
 var pause_button: CheckButton
 var speed_option: OptionButton
 var autosave_spin: SpinBox
@@ -129,6 +136,31 @@ func _build_ui() -> void:
 		buy_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		buy_button.pressed.connect(func() -> void: simulation.buy_materials(state, quantity))
 		buy_row.add_child(buy_button)
+
+	var products_card: VBoxContainer = _make_card(left, "Product Routing")
+	var product_buttons: HBoxContainer = HBoxContainer.new()
+	product_buttons.add_theme_constant_override("separation", 8)
+	products_card.add_child(product_buttons)
+	standard_product_button = Button.new()
+	standard_product_button.text = "Make Standard"
+	standard_product_button.pressed.connect(func() -> void: simulation.select_product(state, "standard"))
+	product_buttons.add_child(standard_product_button)
+	premium_product_button = Button.new()
+	premium_product_button.text = "Make Long-Life"
+	premium_product_button.pressed.connect(func() -> void: simulation.select_product(state, "premium"))
+	product_buttons.add_child(premium_product_button)
+	unlock_product_button = Button.new()
+	unlock_product_button.pressed.connect(func() -> void: simulation.unlock_premium_product(state))
+	products_card.add_child(unlock_product_button)
+	premium_inventory_label = _add_label(products_card)
+	premium_price_label = _add_label(products_card)
+	premium_price_slider = HSlider.new()
+	premium_price_slider.min_value = 2.0
+	premium_price_slider.max_value = 30.0
+	premium_price_slider.step = 0.1
+	premium_price_slider.value_changed.connect(_on_premium_price_changed)
+	products_card.add_child(premium_price_slider)
+	premium_demand_label = _add_label(products_card)
 
 	var price_card: VBoxContainer = _make_card(left, "Price Desk")
 	price_label = _add_label(price_card)
@@ -407,6 +439,10 @@ func _on_price_changed(value: float) -> void:
 	state.demand_per_second = Formulas.demand_per_second(state)
 	state.notify_changed()
 
+func _on_premium_price_changed(value: float) -> void:
+	state.premium_sale_price = value
+	state.notify_changed()
+
 func _on_upgrade_pressed(definition: Dictionary) -> void:
 	simulation.buy_upgrade(state, definition)
 
@@ -450,6 +486,8 @@ func _refresh_ui() -> void:
 	state.demand_per_second = Formulas.demand_per_second(state)
 	if not is_equal_approx(price_slider.value, state.sale_price):
 		price_slider.set_value_no_signal(state.sale_price)
+	if not is_equal_approx(premium_price_slider.value, state.premium_sale_price):
+		premium_price_slider.set_value_no_signal(state.premium_sale_price)
 	if pause_button.button_pressed != state.simulation_paused:
 		pause_button.set_pressed_no_signal(state.simulation_paused)
 	_sync_speed_option()
@@ -461,13 +499,14 @@ func _refresh_ui() -> void:
 	_sync_ui_scale_option()
 	cash_label.text = "Cash: $%s" % Formulas.format_number(state.cash)
 	materials_label.text = "Materials: %s units" % Formulas.format_number(state.raw_materials)
-	inventory_label.text = "Battery inventory: %s / %s cells (worth $%s at current price)" % [
+	inventory_label.text = "Standard inventory: %s cells (worth $%s at current price)\nTotal warehouse use: %s / %s cells" % [
 		Formulas.format_number(state.battery_cells),
-		Formulas.format_number(state.warehouse_capacity),
-		Formulas.format_number(state.battery_cells * state.sale_price)
+		Formulas.format_number(state.battery_cells * state.sale_price),
+		Formulas.format_number(state.battery_cells + state.premium_cells),
+		Formulas.format_number(state.warehouse_capacity)
 	]
 	inventory_bar.max_value = maxf(1.0, state.warehouse_capacity)
-	inventory_bar.value = clampf(state.battery_cells, 0.0, inventory_bar.max_value)
+	inventory_bar.value = clampf(state.battery_cells + state.premium_cells, 0.0, inventory_bar.max_value)
 	material_price_label.text = "Material price: $%s/unit" % Formulas.format_number(Formulas.material_unit_cost(state))
 	var operations_risk: float = maxf(0.0, state.risk - 0.06)
 	risk_label.text = "Security risk: %d%% (base 6%% + operations %d%% - defenses %d%%)" % [
@@ -489,7 +528,20 @@ func _refresh_ui() -> void:
 		_format_duration(state.seconds_played)
 	]
 	price_label.text = "Sale price: $%s/cell" % Formulas.format_number(state.sale_price)
-	demand_label.text = "Potential demand: %s cells/sec" % Formulas.format_number(state.demand_per_second)
+	_update_products_section()
+	var segment_lines: Array[String] = []
+	for segment: Dictionary in Formulas.customer_segment_demand(state):
+		var segment_rate: float = float(segment["demand"])
+		var segment_share: float = 0.0 if state.demand_per_second <= 0.0 else segment_rate / state.demand_per_second
+		segment_lines.append("%s %d%% (%s/s)" % [
+			str(segment["name"]),
+			int(round(segment_share * 100.0)),
+			Formulas.format_number(segment_rate)
+		])
+	demand_label.text = "Potential demand: %s cells/sec\nCustomer mix: %s" % [
+		Formulas.format_number(state.demand_per_second),
+		" | ".join(segment_lines)
+	]
 	sales_label.text = "Current sales: %s cells/sec" % Formulas.format_number(state.sales_per_second)
 	if state.production_downtime > 0.0:
 		production_label.text = "Automation: OFFLINE for %ds (incident response) | Manual batch: %s" % [
@@ -523,7 +575,7 @@ func _refresh_ui() -> void:
 	_update_staff_section()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state) - Formulas.energy_cost_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
-	market_label.text = "Estimated margin: $%s/cell (after materials and energy at $%s/cell)\nInventory sell-through: %s cells/sec\nDemand note: lower prices sell faster; quality, trust, and risk also move demand." % [
+	market_label.text = "Estimated margin: $%s/cell (after materials and energy at $%s/cell)\nInventory sell-through: %s cells/sec\nDemand note: households chase price; specialists tolerate price for quality." % [
 		Formulas.format_number(estimated_margin),
 		Formulas.format_number(Formulas.energy_cost_per_cell(state)),
 		Formulas.format_number(sell_through)
@@ -531,6 +583,30 @@ func _refresh_ui() -> void:
 	_update_upgrade_buttons()
 	_update_event_log()
 	_update_offline_report()
+
+func _update_products_section() -> void:
+	var unlocked: bool = state.premium_product_unlocked
+	unlock_product_button.visible = not unlocked
+	unlock_product_button.text = "Develop Long-Life Cell - $%s" % Formulas.format_number(Simulation.PREMIUM_PRODUCT_UNLOCK_COST)
+	unlock_product_button.disabled = state.cash < Simulation.PREMIUM_PRODUCT_UNLOCK_COST
+	premium_product_button.visible = unlocked
+	premium_product_button.disabled = state.active_product == "premium"
+	standard_product_button.disabled = state.active_product == "standard"
+	premium_inventory_label.visible = unlocked
+	premium_price_label.visible = unlocked
+	premium_price_slider.visible = unlocked
+	premium_demand_label.visible = unlocked
+	if not unlocked:
+		premium_inventory_label.text = "Long-Life Cells use 1.5 materials each and appeal strongly to specialist buyers."
+		return
+	var premium_demand: float = Formulas.demand_per_second(state, "premium")
+	premium_inventory_label.text = "Long-Life inventory: %s cells (worth $%s) | Routing: %s" % [
+		Formulas.format_number(state.premium_cells),
+		Formulas.format_number(state.premium_cells * state.premium_sale_price),
+		"Long-Life" if state.active_product == "premium" else "Standard"
+	]
+	premium_price_label.text = "Long-Life price: $%s/cell" % Formulas.format_number(state.premium_sale_price)
+	premium_demand_label.text = "Long-Life demand: %s cells/sec | 1.5 materials/cell | +25%% quality" % Formulas.format_number(premium_demand)
 
 func _update_maintenance_row() -> void:
 	if state.production_per_second <= 0.0:

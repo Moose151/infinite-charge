@@ -4,6 +4,24 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.8 — 2026-07-23
+
+Multiple products — the garage acquires a second thing to put on invoices.
+
+- Added an unlockable Long-Life Cell product with separate inventory, sale price, demand, and automatic sales.
+- Added production routing between Standard and Long-Life Cells; the premium design uses 1.5 material units per cell and shares warehouse capacity with standard stock.
+- Gave Long-Life Cells a quality/value premium and a market mix weighted toward specialist buyers rather than budget households.
+- Extended save/load and the headless suite for product unlocking, production, sales, routing, shared storage, and persistence.
+
+## 0.7 — 2026-07-22
+
+Customer segments — Milestone Two (Market Depth) begins.
+
+- Split spot-market demand across budget households, local businesses, and specialist buyers.
+- Gave each segment distinct price and quality sensitivity: households react sharply to price, while specialists tolerate higher prices and reward quality more strongly.
+- Added a live customer-mix breakdown with percentage shares and demand rates to the Price Desk so price changes show who remains in the market.
+- Extended the headless suite with segment-total, price-sensitivity, and quality-sensitivity coverage.
+
 ## 0.6.5 — 2026-07-15
 
 First-screen flow pass.

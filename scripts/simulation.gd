@@ -5,6 +5,7 @@ const MATERIAL_MARKET_PERIOD: float = 18.0
 const SECURITY_EVENTS_PATH: String = "res://data/events/security_events.json"
 const CONTRACT_OFFER_PERIOD: float = 170.0
 const CONTRACT_OFFER_LIFETIME: float = 60.0
+const PREMIUM_PRODUCT_UNLOCK_COST: float = 350.0
 
 const CONTRACT_BUYERS: Array[String] = [
 	"the Municipal Parks Department",
@@ -69,10 +70,14 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 
 	var space: float = Formulas.warehouse_space(state)
 	var automated_target: float = Formulas.automated_throughput(state) * uptime
-	var automated_cells: float = minf(minf(state.raw_materials, space), automated_target)
+	var material_per_cell: float = Formulas.product_material_cost(state.active_product)
+	var automated_cells: float = minf(minf(state.raw_materials / material_per_cell, space), automated_target)
 	if automated_cells > 0.0:
-		state.raw_materials -= automated_cells
-		state.battery_cells += automated_cells
+		state.raw_materials -= automated_cells * material_per_cell
+		if state.active_product == "premium":
+			state.premium_cells += automated_cells
+		else:
+			state.battery_cells += automated_cells
 		state.lifetime_cells_made += automated_cells
 		state.machine_condition = maxf(0.0, state.machine_condition - automated_cells * Formulas.wear_per_cell(state))
 		var energy_cost: float = minf(automated_cells * Formulas.energy_cost_per_cell(state), state.cash)
@@ -80,7 +85,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		state.lifetime_energy_cost += energy_cost
 		report["energy_cost"] = energy_cost
 		report["cells_made"] = automated_cells
-		report["materials_consumed"] = automated_cells
+		report["materials_consumed"] = automated_cells * material_per_cell
 	elif allow_events and automated_target > 0.0 and space <= 0.0 and state.raw_materials > 0.0:
 		if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
 			state.add_event("Warehouse full. Automation is stacking cells vertically and hoping.")
@@ -103,6 +108,20 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 	else:
 		state.sales_per_second = 0.0
 
+	if state.premium_product_unlocked:
+		var premium_demanded: float = Formulas.demand_per_second(state, "premium") * delta
+		var premium_sold: float = minf(state.premium_cells, premium_demanded)
+		state.lifetime_sales_lost += maxf(0.0, premium_demanded - premium_sold)
+		if premium_sold > 0.0:
+			var premium_revenue: float = premium_sold * state.premium_sale_price
+			state.premium_cells -= premium_sold
+			state.cash += premium_revenue
+			state.lifetime_cells_sold += premium_sold
+			state.lifetime_revenue += premium_revenue
+			report["cells_sold"] = float(report["cells_sold"]) + premium_sold
+			report["revenue"] = float(report["revenue"]) + premium_revenue
+	state.sales_per_second = float(report["cells_sold"]) / maxf(delta, 0.001)
+
 	_update_material_market(state, delta, allow_events, report)
 	_update_energy_market(state, delta, allow_events)
 	_update_security_events(state, delta, allow_events, report)
@@ -113,7 +132,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 func _check_bankruptcy_rescue(state: GameState, allow_events: bool) -> void:
 	# Safety net: with no cash, materials, inventory, or automation the player
 	# would be permanently stuck. Self-limiting because the grant refills cash.
-	if state.cash >= 5.0 or state.raw_materials >= 1.0 or state.battery_cells >= 0.01:
+	if state.cash >= 5.0 or state.raw_materials >= 1.0 or state.battery_cells + state.premium_cells >= 0.01:
 		return
 	state.cash = 25.0
 	if allow_events:
@@ -144,18 +163,42 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 	return aggregate
 
 func manual_produce(state: GameState) -> bool:
-	if state.raw_materials < state.manual_output:
+	var material_needed: float = state.manual_output * Formulas.product_material_cost(state.active_product)
+	if state.raw_materials < material_needed:
 		if state.event_log.is_empty() or not state.event_log[0].begins_with("Production paused"):
 			state.add_event("Production paused: materials are currently represented by an empty shelf.")
 		return false
-	if state.battery_cells + state.manual_output > state.warehouse_capacity:
+	if Formulas.warehouse_space(state) < state.manual_output:
 		if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
 			state.add_event("Warehouse full. The next cell would legally be furniture.")
 		return false
-	state.raw_materials -= state.manual_output
-	state.battery_cells += state.manual_output
+	state.raw_materials -= material_needed
+	if state.active_product == "premium":
+		state.premium_cells += state.manual_output
+	else:
+		state.battery_cells += state.manual_output
 	state.lifetime_cells_made += state.manual_output
 	state.notify_changed()
+	return true
+
+func unlock_premium_product(state: GameState) -> bool:
+	if state.premium_product_unlocked or state.cash < PREMIUM_PRODUCT_UNLOCK_COST:
+		if not state.premium_product_unlocked:
+			state.add_event("Long-Life Cell design deferred: Product Development has encountered the cash balance.")
+		return false
+	state.cash -= PREMIUM_PRODUCT_UNLOCK_COST
+	state.premium_product_unlocked = true
+	state.active_product = "premium"
+	state.add_event("Long-Life Cell design approved. It contains 50% more material and considerably more branding.")
+	return true
+
+func select_product(state: GameState, product_id: String) -> bool:
+	if product_id != "standard" and product_id != "premium":
+		return false
+	if product_id == "premium" and not state.premium_product_unlocked:
+		return false
+	state.active_product = product_id
+	state.add_event("Production routing changed to %s cells. The label printer has been informed." % ("Long-Life" if product_id == "premium" else "Standard"))
 	return true
 
 func buy_materials(state: GameState, quantity: float) -> bool:
@@ -396,11 +439,13 @@ func _trigger_security_event(state: GameState, event: Dictionary, report: Dictio
 			detail = "Response cost: $%s." % Formulas.format_number(loss)
 		"inventory":
 			var lost_cells: float = state.battery_cells * severity
+			var lost_premium_cells: float = state.premium_cells * severity
 			state.battery_cells -= lost_cells
-			var value: float = lost_cells * state.sale_price
+			state.premium_cells -= lost_premium_cells
+			var value: float = lost_cells * state.sale_price + lost_premium_cells * state.premium_sale_price
 			state.lifetime_security_losses += value
 			report["security_losses"] = float(report["security_losses"]) + value
-			detail = "Stock written off: %s cells." % Formulas.format_number(lost_cells)
+			detail = "Stock written off: %s cells." % Formulas.format_number(lost_cells + lost_premium_cells)
 		"downtime":
 			state.production_downtime += severity
 			detail = "Automation offline for %ds." % roundi(severity)

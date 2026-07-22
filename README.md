@@ -7,7 +7,7 @@ Infinite Charge is a desktop-first Godot idle-management game about growing a ba
 The project is currently focused on the first garage-stage MVP:
 
 - one raw material
-- one battery-cell product
+- two battery-cell products with separate pricing and demand
 - manual production
 - adjustable sale price
 - price-reactive demand
