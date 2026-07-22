@@ -54,11 +54,13 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		"security_losses": 0.0,
 		"energy_cost": 0.0,
 		"wages_paid": 0.0,
+		"advertising_cost": 0.0,
 		"market_events": 0,
 		"security_events": 0,
 	}
 
 	_pay_wages(state, delta, allow_events, report)
+	_pay_advertising(state, delta, allow_events, report)
 
 	state.seconds_played += delta
 	state.demand_per_second = Formulas.demand_per_second(state)
@@ -148,6 +150,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		"revenue": 0.0,
 		"materials_consumed": 0.0,
 		"security_losses": 0.0,
+		"advertising_cost": 0.0,
 		"market_events": 0,
 		"security_events": 0,
 	}
@@ -156,7 +159,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		var step: float = minf(chunk_seconds, remaining)
 		remaining -= step
 		var report: Dictionary = advance(state, step, allow_events)
-		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses"]:
+		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost"]:
 			aggregate[key] = float(aggregate[key]) + float(report[key])
 		for key: String in ["market_events", "security_events"]:
 			aggregate[key] = int(aggregate[key]) + int(report[key])
@@ -211,6 +214,30 @@ func buy_materials(state: GameState, quantity: float) -> bool:
 	state.lifetime_materials_bought += quantity
 	state.add_event("Purchased %s material units for $%s." % [Formulas.format_number(quantity), Formulas.format_number(cost)])
 	return true
+
+func set_advertising_channel(state: GameState, channel_id: String, enabled: bool) -> bool:
+	if not state.advertising_channels.has(channel_id):
+		return false
+	state.advertising_channels[channel_id] = enabled
+	state.add_event("%s campaign %s. Marketing has adjusted the clipboards." % [
+		channel_id.replace("_", " ").capitalize(),
+		"launched" if enabled else "paused"
+	])
+	return true
+
+func _pay_advertising(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
+	var due: float = Formulas.advertising_cost_per_second(state) * delta
+	if due <= 0.0:
+		return
+	if state.cash >= due:
+		state.cash -= due
+		state.lifetime_advertising_spend += due
+		report["advertising_cost"] = due
+		return
+	for channel_id: String in state.advertising_channels:
+		state.advertising_channels[channel_id] = false
+	if allow_events:
+		state.add_event("Advertising paused after Finance discovered that attention is rented, not owned.")
 
 func _pay_wages(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
 	var worker_count: int = Formulas.total_workers(state)

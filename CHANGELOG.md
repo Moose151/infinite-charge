@@ -4,6 +4,15 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.9 — 2026-07-23
+
+Advertising channels — awareness now comes with an invoice and an intended audience.
+
+- Added toggleable Neighbourhood Flyers, Business Directory, and Specialist Newsletter campaigns with continuous running costs.
+- Made each channel favour a different customer segment, creating product-and-audience choices instead of a generic demand multiplier.
+- Campaigns pause automatically when they can no longer be funded, and advertising spend is tracked and saved.
+- Added an Advertising Channels UI card and headless coverage for targeting, costs, automatic pausing, validation, and persistence.
+
 ## 0.8 — 2026-07-23
 
 Multiple products — the garage acquires a second thing to put on invoices.

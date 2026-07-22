@@ -25,6 +25,30 @@ const CUSTOMER_SEGMENTS: Array[Dictionary] = [
 	},
 ]
 
+const ADVERTISING_CHANNELS: Array[Dictionary] = [
+	{
+		"id": "neighbourhood_flyers",
+		"name": "Neighbourhood Flyers",
+		"cost_per_second": 0.18,
+		"description": "Strong household reach; limited value to buyers with procurement departments.",
+		"segment_boosts": {"households": 0.9, "businesses": 0.2, "specialists": 0.05},
+	},
+	{
+		"id": "business_directory",
+		"name": "Business Directory",
+		"cost_per_second": 0.35,
+		"description": "Targets local firms and reminds households that directories still exist.",
+		"segment_boosts": {"households": 0.1, "businesses": 1.0, "specialists": 0.25},
+	},
+	{
+		"id": "specialist_newsletter",
+		"name": "Specialist Newsletter",
+		"cost_per_second": 0.55,
+		"description": "Expensive technical copy for buyers who read footnotes voluntarily.",
+		"segment_boosts": {"households": 0.0, "businesses": 0.25, "specialists": 1.4},
+	},
+]
+
 static func demand_per_second(state: GameState, product_id: String = "standard") -> float:
 	var total: float = 0.0
 	for segment: Dictionary in customer_segment_demand(state, product_id):
@@ -44,15 +68,32 @@ static func customer_segment_demand(state: GameState, product_id: String = "stan
 		var product_affinity: float = 1.0
 		if is_premium:
 			product_affinity = {"households": 0.35, "businesses": 0.65, "specialists": 1.8}.get(str(definition["id"]), 1.0)
+		var channel_boost: float = advertising_boost_for_segment(state, str(definition["id"]))
 		var price_factor: float = pow(price_ratio, -float(definition["price_sensitivity"]))
 		var quality_factor: float = pow(clampf(quality, 0.25, 4.0), float(definition["quality_sensitivity"]))
-		var demand: float = maxf(0.0, 0.7 * state.awareness * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
+		var demand: float = maxf(0.0, 0.7 * state.awareness * (1.0 + channel_boost) * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty))
 		results.append({
 			"id": definition["id"],
 			"name": definition["name"],
 			"demand": demand,
 		})
 	return results
+
+static func advertising_boost_for_segment(state: GameState, segment_id: String) -> float:
+	var boost: float = 0.0
+	for channel: Dictionary in ADVERTISING_CHANNELS:
+		var channel_id: String = str(channel["id"])
+		if bool(state.advertising_channels.get(channel_id, false)):
+			var boosts: Dictionary = channel["segment_boosts"]
+			boost += float(boosts.get(segment_id, 0.0))
+	return boost
+
+static func advertising_cost_per_second(state: GameState) -> float:
+	var cost: float = 0.0
+	for channel: Dictionary in ADVERTISING_CHANNELS:
+		if bool(state.advertising_channels.get(str(channel["id"]), false)):
+			cost += float(channel["cost_per_second"])
+	return cost
 
 const WORKER_STAGE_RATE: float = 0.4
 const WORKER_WAGE_PER_SECOND: float = 0.35

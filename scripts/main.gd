@@ -46,6 +46,8 @@ var inventory_bar: ProgressBar
 var risk_bar: ProgressBar
 var quality_bar: ProgressBar
 var condition_bar: ProgressBar
+var advertising_buttons: Dictionary = {}
+var advertising_label: Label
 
 const UI_SCALES: Array[float] = [1.0]
 
@@ -313,6 +315,20 @@ func _build_ui() -> void:
 	controls_card.add_child(save_button)
 
 	var upgrade_card: VBoxContainer = _make_card(right, "Upgrades")
+	var advertising_card: VBoxContainer = _make_card(right, "Advertising Channels")
+	advertising_label = _add_label(advertising_card)
+	for channel: Dictionary in Formulas.ADVERTISING_CHANNELS:
+		var channel_id: String = str(channel["id"])
+		var toggle: CheckButton = CheckButton.new()
+		toggle.text = "%s — $%s/s" % [
+			str(channel["name"]),
+			Formulas.format_number(float(channel["cost_per_second"]))
+		]
+		toggle.tooltip_text = str(channel["description"])
+		toggle.toggled.connect(_on_advertising_toggled.bind(channel_id))
+		advertising_buttons[channel_id] = toggle
+		advertising_card.add_child(toggle)
+
 	var upgrade_list: VBoxContainer = VBoxContainer.new()
 	upgrade_list.add_theme_constant_override("separation", 6)
 	upgrade_card.add_child(upgrade_list)
@@ -446,6 +462,9 @@ func _on_premium_price_changed(value: float) -> void:
 func _on_upgrade_pressed(definition: Dictionary) -> void:
 	simulation.buy_upgrade(state, definition)
 
+func _on_advertising_toggled(enabled: bool, channel_id: String) -> void:
+	simulation.set_advertising_channel(state, channel_id, enabled)
+
 func _on_pause_toggled(toggled_on: bool) -> void:
 	state.simulation_paused = toggled_on
 	state.add_event("Simulation paused. Productivity has entered a reflective period." if toggled_on else "Simulation resumed. Reflection has been deprioritised.")
@@ -529,6 +548,7 @@ func _refresh_ui() -> void:
 	]
 	price_label.text = "Sale price: $%s/cell" % Formulas.format_number(state.sale_price)
 	_update_products_section()
+	_update_advertising_section()
 	var segment_lines: Array[String] = []
 	for segment: Dictionary in Formulas.customer_segment_demand(state):
 		var segment_rate: float = float(segment["demand"])
@@ -583,6 +603,18 @@ func _refresh_ui() -> void:
 	_update_upgrade_buttons()
 	_update_event_log()
 	_update_offline_report()
+
+func _update_advertising_section() -> void:
+	for channel_id: String in advertising_buttons:
+		var toggle: CheckButton = advertising_buttons[channel_id] as CheckButton
+		var enabled: bool = bool(state.advertising_channels.get(channel_id, false))
+		if toggle.button_pressed != enabled:
+			toggle.set_pressed_no_signal(enabled)
+	var cost: float = Formulas.advertising_cost_per_second(state)
+	advertising_label.text = "Campaign spend: $%s/s | Lifetime: $%s\nEach channel reaches a different customer mix." % [
+		Formulas.format_number(cost),
+		Formulas.format_number(state.lifetime_advertising_spend)
+	]
 
 func _update_products_section() -> void:
 	var unlocked: bool = state.premium_product_unlocked

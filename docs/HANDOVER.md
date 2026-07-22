@@ -6,7 +6,7 @@ Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-
 
 The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 5, clicking becomes optional as automation scales, and most upgrades max out within the hour. The optimal sale price shifts from ~$4 early (demand-limited) toward $6 late (supply-limited), so the pricing decision stays live throughout the session.
 
-Milestone One is complete: warehouse capacity, maintenance, production stages, quality, contracts, employees, and energy are all in. **Milestone Two is underway.** Customer segments arrived in v0.7. Multiple products arrived in v0.8: the shared garage line can now route production between Standard and Long-Life Cells, with separate stock, pricing, and demand. Next per the scope: advertising channels, competitors, reputation, and contract requirements.
+Milestone One is complete: warehouse capacity, maintenance, production stages, quality, contracts, employees, and energy are all in. **Milestone Two is underway.** Customer segments arrived in v0.7, multiple products in v0.8, and distinct advertising channels in v0.9. Flyers, the business directory, and a specialist newsletter now have different audiences and continuous costs. Next per the scope: competitors, reputation, and contract requirements.
 
 The project has been pushed to GitHub:
 
@@ -88,7 +88,7 @@ The player can:
 ## Recommended Next Steps
 
 1. Human-playtest the full loop now that Milestone One is complete. Prioritize feel: the first screen should make the garage satisfying to operate before Milestone Two adds more market depth.
-2. Continue Milestone Two (Market Depth) with distinct advertising channels, building on the customer-segment and multiple-product demand model.
+2. Continue Milestone Two (Market Depth) with lightweight competitors that affect price positioning without turning the garage into a market spreadsheet.
 3. Plan a visual workshop layer: show the current garage, then let upgrades visibly add equipment, automation, storage, staff, security controls, and optional cosmetics.
 4. Consider surfacing wear rate and time-to-empty-warehouse estimates now that production stages add complexity.
 

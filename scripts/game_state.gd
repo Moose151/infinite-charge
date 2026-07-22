@@ -32,6 +32,12 @@ var energy_market_timer: float = 0.0
 var workers: Dictionary = {"prep": 0, "assembly": 0, "testing": 0}
 var staff_striking: bool = false
 var awareness: float = 1.0
+var advertising_channels: Dictionary = {
+	"neighbourhood_flyers": false,
+	"business_directory": false,
+	"specialist_newsletter": false,
+}
+var lifetime_advertising_spend: float = 0.0
 var quality: float = 1.0
 var base_value: float = 4.0
 var material_discount: float = 0.0
@@ -108,6 +114,8 @@ func to_save_data() -> Dictionary:
 		"workers": workers,
 		"staff_striking": staff_striking,
 		"awareness": awareness,
+		"advertising_channels": advertising_channels,
+		"lifetime_advertising_spend": lifetime_advertising_spend,
 		"quality": quality,
 		"base_value": base_value,
 		"material_discount": material_discount,
@@ -175,6 +183,10 @@ func load_save_data(data: Dictionary) -> void:
 		workers[role] = int(loaded_workers.get(role, 0))
 	staff_striking = bool(data.get("staff_striking", staff_striking))
 	awareness = float(data.get("awareness", awareness))
+	var loaded_channels: Dictionary = data.get("advertising_channels", {})
+	for channel_id: String in advertising_channels:
+		advertising_channels[channel_id] = bool(loaded_channels.get(channel_id, false))
+	lifetime_advertising_spend = float(data.get("lifetime_advertising_spend", lifetime_advertising_spend))
 	quality = float(data.get("quality", quality))
 	base_value = float(data.get("base_value", base_value))
 	material_discount = float(data.get("material_discount", material_discount))

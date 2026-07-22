@@ -10,6 +10,7 @@ func _init() -> void:
 	_test_formulas()
 	_test_customer_segments()
 	_test_multiple_products()
+	_test_advertising_channels()
 	_test_manual_production()
 	_test_material_buying()
 	_test_upgrades()
@@ -125,6 +126,26 @@ func _test_multiple_products() -> void:
 	var premium_segments: Array[Dictionary] = Formulas.customer_segment_demand(state, "premium")
 	_check(_segment_demand(premium_segments, "specialists") > _segment_demand(premium_segments, "households"), "premium cells skew toward specialists")
 	_check(simulation.select_product(state, "standard"), "production can switch back to standard")
+
+func _test_advertising_channels() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	var baseline: Array[Dictionary] = Formulas.customer_segment_demand(state)
+	_check(simulation.set_advertising_channel(state, "neighbourhood_flyers", true), "advertising channel can launch")
+	var advertised: Array[Dictionary] = Formulas.customer_segment_demand(state)
+	var household_gain: float = _segment_demand(advertised, "households") / _segment_demand(baseline, "households")
+	var specialist_gain: float = _segment_demand(advertised, "specialists") / _segment_demand(baseline, "specialists")
+	_check(household_gain > specialist_gain, "flyers favour household demand")
+	_check(is_equal_approx(Formulas.advertising_cost_per_second(state), 0.18), "active channel reports running cost")
+
+	state.cash = 10.0
+	var report: Dictionary = simulation.advance(state, 10.0, false)
+	_check(is_equal_approx(float(report["advertising_cost"]), 1.8), "advertising spend charged during advance")
+	_check(is_equal_approx(state.lifetime_advertising_spend, 1.8), "advertising spend tracked")
+	state.cash = 0.0
+	simulation.advance(state, 1.0, false)
+	_check(not bool(state.advertising_channels["neighbourhood_flyers"]), "unaffordable campaigns pause")
+	_check(not simulation.set_advertising_channel(state, "not_a_channel", true), "unknown advertising channel rejected")
 
 func _test_manual_production() -> void:
 	var state: GameState = GameState.new()
@@ -498,6 +519,8 @@ func _test_save_round_trip() -> void:
 	state.workers = {"prep": 1, "assembly": 2, "testing": 0}
 	state.lifetime_energy_cost = 55.0
 	state.lifetime_wages_paid = 66.0
+	state.advertising_channels["business_directory"] = true
+	state.lifetime_advertising_spend = 77.0
 	state.upgrade_levels = {"better_tools": 2}
 	state.lifetime_revenue = 999.0
 	state.add_event("Round trip initiated.")
@@ -528,6 +551,8 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.energy_discount, 0.24), "energy discount restored")
 	_check(int(loaded.workers.get("assembly", 0)) == 2, "workers restored")
 	_check(is_equal_approx(loaded.lifetime_wages_paid, 66.0), "wages stat restored")
+	_check(bool(loaded.advertising_channels.get("business_directory", false)), "advertising channel restored")
+	_check(is_equal_approx(loaded.lifetime_advertising_spend, 77.0), "advertising spend restored")
 	_check(int(loaded.upgrade_levels.get("better_tools", 0)) == 2, "upgrade levels restored")
 	_check(is_equal_approx(loaded.lifetime_revenue, 999.0), "stats restored")
 	_check(loaded.event_log.size() > 0 and loaded.event_log[0] == "Round trip initiated.", "event log restored")
