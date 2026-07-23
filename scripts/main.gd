@@ -82,6 +82,15 @@ var automation_reserve_spin: SpinBox
 var supply_contract_label: Label
 var supply_contract_buttons: Dictionary = {}
 var detailed_stats_label: Label
+var research_summary_label: Label
+var research_branch_labels: Dictionary = {}
+var research_branch_buttons: Dictionary = {}
+var research_equipment_labels: Dictionary = {}
+var research_equipment_buttons: Dictionary = {}
+var long_project_label: Label
+var long_project_buttons: Dictionary = {}
+var challenge_label: Label
+var challenge_buttons: Dictionary = {}
 
 const UI_SCALES: Array[float] = [1.0]
 const THEME_IDS: Array[String] = ["workshop", "corporate", "solar"]
@@ -196,6 +205,9 @@ func _build_ui() -> void:
 	var corporate_panel: PanelContainer = _make_panel("CORPORATE  ·  Factories, departments and delegation")
 	corporate_panel.name = "Corporate"
 	tabs.add_child(corporate_panel)
+	var research_panel: PanelContainer = _make_panel("RESEARCH  ·  Branches, equipment, projects and challenges")
+	research_panel.name = "Research"
+	tabs.add_child(research_panel)
 	var security_panel: PanelContainer = _make_panel("SECURITY  ·  Map, detect, contain and recover")
 	security_panel.name = "Security"
 	tabs.add_child(security_panel)
@@ -212,6 +224,7 @@ func _build_ui() -> void:
 	var market: VBoxContainer = market_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var company: VBoxContainer = company_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var corporate: VBoxContainer = corporate_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var research: VBoxContainer = research_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var security: VBoxContainer = security_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var office: VBoxContainer = office_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var activity: VBoxContainer = activity_panel.get_node("Margin/Scroll/Content") as VBoxContainer
@@ -453,6 +466,37 @@ func _build_ui() -> void:
 
 	var detailed_stats_card: VBoxContainer = _make_card(corporate, "Detailed Statistics")
 	detailed_stats_label = _add_label(detailed_stats_card)
+
+	var research_branches_card: VBoxContainer = _make_card(research, "Research Branches")
+	research_summary_label = _add_label(research_branches_card)
+	for branch_id: String in ["materials", "manufacturing", "markets", "cybernetics"]:
+		_add_research_branch_row(research_branches_card, branch_id)
+
+	var equipment_card: VBoxContainer = _make_card(research, "Research Equipment")
+	for equipment_id: String in ["precision_assembler", "smart_warehouse", "laboratory_rig", "threat_console", "market_analytics"]:
+		_add_research_equipment_row(equipment_card, equipment_id)
+
+	var projects_card: VBoxContainer = _make_card(research, "Long-Term Projects")
+	long_project_label = _add_label(projects_card)
+	for project_id: String in ["solid_state_prototype", "closed_loop_materials", "predictive_operations"]:
+		var project_button: Button = Button.new()
+		project_button.pressed.connect(func() -> void: simulation.start_long_project(state, project_id))
+		projects_card.add_child(project_button)
+		long_project_buttons[project_id] = project_button
+
+	var challenges_card: VBoxContainer = _make_card(research, "Challenges")
+	challenge_label = _add_label(challenges_card)
+	var challenge_grid: GridContainer = GridContainer.new()
+	challenge_grid.columns = 2
+	challenge_grid.add_theme_constant_override("h_separation", 8)
+	challenge_grid.add_theme_constant_override("v_separation", 8)
+	challenges_card.add_child(challenge_grid)
+	for challenge_id: String in ["production_sprint", "revenue_drive", "incident_free", "contract_streak"]:
+		var challenge_button: Button = Button.new()
+		challenge_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		challenge_button.pressed.connect(func() -> void: simulation.start_challenge(state, challenge_id))
+		challenge_grid.add_child(challenge_button)
+		challenge_buttons[challenge_id] = challenge_button
 
 	var contracts_card: VBoxContainer = _make_card(company, "Contracts")
 	reputation_label = _add_label(contracts_card)
@@ -859,6 +903,36 @@ func _add_department_row(parent: Control, department_id: String) -> void:
 	row.add_child(manager_button)
 	department_manager_buttons[department_id] = manager_button
 
+func _add_research_branch_row(parent: Control, branch_id: String) -> void:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var label: Label = Label.new()
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(label)
+	research_branch_labels[branch_id] = label
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(130.0, 0.0)
+	button.pressed.connect(func() -> void: simulation.advance_research_branch(state, branch_id))
+	row.add_child(button)
+	research_branch_buttons[branch_id] = button
+
+func _add_research_equipment_row(parent: Control, equipment_id: String) -> void:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var label: Label = Label.new()
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(label)
+	research_equipment_labels[equipment_id] = label
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(165.0, 0.0)
+	button.pressed.connect(func() -> void: simulation.buy_research_equipment(state, equipment_id))
+	row.add_child(button)
+	research_equipment_buttons[equipment_id] = button
+
 func _on_price_changed(value: float) -> void:
 	state.sale_price = value
 	state.demand_per_second = Formulas.demand_per_second(state)
@@ -1094,6 +1168,7 @@ func _refresh_ui() -> void:
 	_update_staff_section()
 	_update_cybersecurity_section()
 	_update_corporate_section()
+	_update_research_section()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
 	var margin_status: String = "PROFITABLE" if estimated_margin > 0.0 else "LOSS-MAKING"
@@ -1617,6 +1692,112 @@ func _update_corporate_section() -> void:
 		Formulas.format_number(state.lifetime_corporate_investment),
 		Formulas.format_number(state.lifetime_manager_wages)
 	]
+
+func _update_research_section() -> void:
+	research_summary_label.text = "Available: %s RP · generation %s RP/min · lifetime %s RP\nCompany scale and staffed departments generate research continuously." % [
+		Formulas.format_number(state.research_points),
+		Formulas.format_number(Formulas.research_points_per_second(state) * 60.0),
+		Formulas.format_number(state.lifetime_research_points)
+	]
+	var branch_effects: Dictionary = {
+		"materials": "-2% component cost per level",
+		"manufacturing": "+4% automated throughput per level",
+		"markets": "+3% demand per level",
+		"cybernetics": "+2.5% detection per level",
+	}
+	for branch_id: String in research_branch_labels:
+		var level: int = int(state.research_levels.get(branch_id, 0))
+		var label: Label = research_branch_labels[branch_id] as Label
+		label.text = "%s · L%d/5\n%s" % [str(Simulation.RESEARCH_BRANCHES[branch_id]["name"]), level, str(branch_effects[branch_id])]
+		var button: Button = research_branch_buttons[branch_id] as Button
+		if level >= 5:
+			button.text = "Complete"
+			button.disabled = true
+		else:
+			var cost: float = simulation.research_branch_cost(state, branch_id)
+			button.text = "Research · %s RP" % Formulas.format_number(cost)
+			button.disabled = state.research_points < cost
+
+	var equipment_effects: Dictionary = {
+		"precision_assembler": "+0.35 cells/s and -2% energy per level",
+		"smart_warehouse": "+150 storage per level",
+		"laboratory_rig": "+0.30 testing/s per level",
+		"threat_console": "+4% detection per level",
+		"market_analytics": "+4% demand per level",
+	}
+	for equipment_id: String in research_equipment_labels:
+		var definition: Dictionary = Simulation.RESEARCH_EQUIPMENT[equipment_id]
+		var level: int = int(state.equipment_levels.get(equipment_id, 0))
+		var branch_id: String = str(definition["branch"])
+		var required: int = int(definition["required_level"])
+		var unlocked: bool = int(state.research_levels.get(branch_id, 0)) >= required
+		var label: Label = research_equipment_labels[equipment_id] as Label
+		label.text = "%s · L%d/3\n%s · requires %s L%d" % [
+			str(definition["name"]), level, str(equipment_effects[equipment_id]),
+			str(Simulation.RESEARCH_BRANCHES[branch_id]["name"]), required
+		]
+		var button: Button = research_equipment_buttons[equipment_id] as Button
+		if level >= 3:
+			button.text = "Complete"
+			button.disabled = true
+		elif not unlocked:
+			button.text = "Research locked"
+			button.disabled = true
+		else:
+			var costs: Dictionary = simulation.equipment_costs(state, equipment_id)
+			button.text = "$%s + %s RP" % [Formulas.format_number(float(costs["cash"])), Formulas.format_number(float(costs["research"]))]
+			button.disabled = state.cash < float(costs["cash"]) or state.research_points < float(costs["research"])
+
+	if state.active_long_project.is_empty():
+		long_project_label.text = "No active project · completed %d/%d\nProjects consume cash and research upfront, then progress online and offline." % [
+			state.completed_long_projects.size(), Simulation.LONG_PROJECTS.size()
+		]
+	else:
+		var duration: float = float(state.active_long_project.get("duration", 1.0))
+		var remaining: float = float(state.active_long_project.get("time_remaining", 0.0))
+		long_project_label.text = "ACTIVE: %s · %d%% complete · %s remaining\nCompleted projects: %d/%d" % [
+			str(state.active_long_project.get("name", "Long-term project")),
+			roundi((1.0 - remaining / maxf(1.0, duration)) * 100.0),
+			_format_duration(remaining),
+			state.completed_long_projects.size(), Simulation.LONG_PROJECTS.size()
+		]
+	for project_id: String in long_project_buttons:
+		var project: Dictionary = Simulation.LONG_PROJECTS[project_id]
+		var button: Button = long_project_buttons[project_id] as Button
+		if state.completed_long_projects.has(project_id):
+			button.text = "%s · COMPLETE · %s" % [str(project["name"]), str(project["description"])]
+			button.disabled = true
+		else:
+			button.text = "%s · $%s + %s RP · %s · %s" % [
+				str(project["name"]), Formulas.format_number(float(project["cash_cost"])),
+				Formulas.format_number(float(project["research_cost"])), _format_duration(float(project["duration"])),
+				str(project["description"])
+			]
+			button.disabled = not state.active_long_project.is_empty() or state.cash < float(project["cash_cost"]) or state.research_points < float(project["research_cost"])
+
+	if state.active_challenge.is_empty():
+		challenge_label.text = "No active challenge · completed %d · failed %d\nChallenges pause during offline progress." % [
+			state.lifetime_challenges_completed, state.lifetime_challenges_failed
+		]
+	else:
+		var progress: float = simulation.challenge_progress(state)
+		var target: float = float(state.active_challenge.get("target", 1.0))
+		challenge_label.text = "ACTIVE: %s · %s / %s · %s remaining\nCompleted %d · failed %d" % [
+			str(state.active_challenge.get("name", "Challenge")),
+			Formulas.format_number(progress), Formulas.format_number(target),
+			_format_duration(float(state.active_challenge.get("time_remaining", 0.0))),
+			state.lifetime_challenges_completed, state.lifetime_challenges_failed
+		]
+	for challenge_id: String in challenge_buttons:
+		var challenge: Dictionary = Simulation.CHALLENGES[challenge_id]
+		var button: Button = challenge_buttons[challenge_id] as Button
+		var completed_marker: String = " ✓" if state.completed_challenge_ids.has(challenge_id) else ""
+		button.text = "%s%s\n%s in %s · $%s + %s RP" % [
+			str(challenge["name"]), completed_marker,
+			Formulas.format_number(float(challenge["target"])), _format_duration(float(challenge["duration"])),
+			Formulas.format_number(float(challenge["reward_cash"])), Formulas.format_number(float(challenge["reward_research"]))
+		]
+		button.disabled = not state.active_challenge.is_empty()
 
 func _set_security_node(id: String, text: String) -> void:
 	var label: Label = network_asset_labels.get(id) as Label

@@ -92,6 +92,24 @@ var lifetime_corporate_investment: float = 0.0
 var statistics_timer: float = 0.0
 var statistics_history: Array[Dictionary] = []
 
+var research_points: float = 0.0
+var lifetime_research_points: float = 0.0
+var research_levels: Dictionary = {"materials": 0, "manufacturing": 0, "markets": 0, "cybernetics": 0}
+var equipment_levels: Dictionary = {
+	"precision_assembler": 0,
+	"smart_warehouse": 0,
+	"laboratory_rig": 0,
+	"threat_console": 0,
+	"market_analytics": 0,
+}
+var active_long_project: Dictionary = {}
+var completed_long_projects: Array[String] = []
+var lifetime_projects_completed: int = 0
+var active_challenge: Dictionary = {}
+var lifetime_challenges_completed: int = 0
+var lifetime_challenges_failed: int = 0
+var completed_challenge_ids: Array[String] = []
+
 var demand_per_second: float = 0.0
 var sales_per_second: float = 0.0
 var lifetime_cells_made: float = 0.0
@@ -207,6 +225,17 @@ func to_save_data() -> Dictionary:
 		"lifetime_corporate_investment": lifetime_corporate_investment,
 		"statistics_timer": statistics_timer,
 		"statistics_history": statistics_history,
+		"research_points": research_points,
+		"lifetime_research_points": lifetime_research_points,
+		"research_levels": research_levels,
+		"equipment_levels": equipment_levels,
+		"active_long_project": active_long_project,
+		"completed_long_projects": completed_long_projects,
+		"lifetime_projects_completed": lifetime_projects_completed,
+		"active_challenge": active_challenge,
+		"lifetime_challenges_completed": lifetime_challenges_completed,
+		"lifetime_challenges_failed": lifetime_challenges_failed,
+		"completed_challenge_ids": completed_challenge_ids,
 		"demand_per_second": demand_per_second,
 		"sales_per_second": sales_per_second,
 		"lifetime_cells_made": lifetime_cells_made,
@@ -340,6 +369,25 @@ func load_save_data(data: Dictionary) -> void:
 			statistics_history.append(loaded_sample)
 	if statistics_history.size() > 120:
 		statistics_history = statistics_history.slice(statistics_history.size() - 120)
+	research_points = maxf(0.0, float(data.get("research_points", research_points)))
+	lifetime_research_points = maxf(0.0, float(data.get("lifetime_research_points", lifetime_research_points)))
+	var loaded_research: Dictionary = data.get("research_levels", {})
+	var loaded_equipment: Dictionary = data.get("equipment_levels", {})
+	for branch_id: String in research_levels:
+		research_levels[branch_id] = clampi(int(loaded_research.get(branch_id, 0)), 0, 5)
+	for equipment_id: String in equipment_levels:
+		equipment_levels[equipment_id] = clampi(int(loaded_equipment.get(equipment_id, 0)), 0, 3)
+	active_long_project = data.get("active_long_project", {})
+	completed_long_projects.clear()
+	for project_id: Variant in data.get("completed_long_projects", []):
+		completed_long_projects.append(str(project_id))
+	lifetime_projects_completed = int(data.get("lifetime_projects_completed", lifetime_projects_completed))
+	active_challenge = data.get("active_challenge", {})
+	lifetime_challenges_completed = int(data.get("lifetime_challenges_completed", lifetime_challenges_completed))
+	lifetime_challenges_failed = int(data.get("lifetime_challenges_failed", lifetime_challenges_failed))
+	completed_challenge_ids.clear()
+	for challenge_id: Variant in data.get("completed_challenge_ids", []):
+		completed_challenge_ids.append(str(challenge_id))
 	demand_per_second = float(data.get("demand_per_second", demand_per_second))
 	sales_per_second = float(data.get("sales_per_second", sales_per_second))
 	lifetime_cells_made = float(data.get("lifetime_cells_made", lifetime_cells_made))

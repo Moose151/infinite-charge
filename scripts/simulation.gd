@@ -28,6 +28,30 @@ const SUPPLY_PLANS: Dictionary = {
 	"local": {"name": "Local Supplier Schedule", "fee": 500.0, "duration": 900.0, "discount": 0.10},
 	"bulk": {"name": "Bulk Components Agreement", "fee": 1500.0, "duration": 1800.0, "discount": 0.18},
 }
+const RESEARCH_BRANCHES: Dictionary = {
+	"materials": {"name": "Materials Science", "base_cost": 20.0, "scale": 1.65},
+	"manufacturing": {"name": "Manufacturing Systems", "base_cost": 24.0, "scale": 1.7},
+	"markets": {"name": "Market Intelligence", "base_cost": 22.0, "scale": 1.68},
+	"cybernetics": {"name": "Industrial Cybernetics", "base_cost": 26.0, "scale": 1.72},
+}
+const RESEARCH_EQUIPMENT: Dictionary = {
+	"precision_assembler": {"name": "Precision Assembler", "branch": "manufacturing", "required_level": 1, "cash_cost": 1800.0, "research_cost": 18.0},
+	"smart_warehouse": {"name": "Smart Warehouse Grid", "branch": "materials", "required_level": 1, "cash_cost": 1400.0, "research_cost": 15.0},
+	"laboratory_rig": {"name": "Laboratory Test Rig", "branch": "manufacturing", "required_level": 2, "cash_cost": 2200.0, "research_cost": 24.0},
+	"threat_console": {"name": "Threat Analysis Console", "branch": "cybernetics", "required_level": 1, "cash_cost": 1900.0, "research_cost": 20.0},
+	"market_analytics": {"name": "Market Analytics Cluster", "branch": "markets", "required_level": 1, "cash_cost": 1700.0, "research_cost": 18.0},
+}
+const LONG_PROJECTS: Dictionary = {
+	"solid_state_prototype": {"name": "Solid-State Prototype", "duration": 1800.0, "cash_cost": 6000.0, "research_cost": 55.0, "description": "+12% effective product quality"},
+	"closed_loop_materials": {"name": "Closed-Loop Materials Pilot", "duration": 2400.0, "cash_cost": 7500.0, "research_cost": 65.0, "description": "+8% permanent material discount"},
+	"predictive_operations": {"name": "Predictive Operations Rollout", "duration": 2100.0, "cash_cost": 7000.0, "research_cost": 60.0, "description": "+0.75 cells/s garage output and less wear"},
+}
+const CHALLENGES: Dictionary = {
+	"production_sprint": {"name": "Production Sprint", "duration": 600.0, "metric": "cells_made", "target": 500.0, "reward_cash": 1500.0, "reward_research": 20.0},
+	"revenue_drive": {"name": "Revenue Drive", "duration": 900.0, "metric": "revenue", "target": 5000.0, "reward_cash": 2500.0, "reward_research": 25.0},
+	"incident_free": {"name": "Incident-Free Window", "duration": 900.0, "metric": "incident_free", "target": 900.0, "reward_cash": 2000.0, "reward_research": 30.0},
+	"contract_streak": {"name": "Contract Delivery Streak", "duration": 1200.0, "metric": "contracts", "target": 3.0, "reward_cash": 3000.0, "reward_research": 25.0},
+}
 
 const CONTRACT_BUYERS: Array[String] = [
 	"the Municipal Parks Department",
@@ -88,6 +112,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		"security_events": 0,
 		"security_wages": 0.0,
 		"manager_wages": 0.0,
+		"research_points": 0.0,
 		"threats_detected": 0,
 		"incidents_contained": 0,
 	}
@@ -100,6 +125,11 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 	_pay_advertising(state, delta, allow_events, report)
 
 	state.seconds_played += delta
+	var research_gain: float = Formulas.research_points_per_second(state) * delta
+	state.research_points += research_gain
+	state.lifetime_research_points += research_gain
+	report["research_points"] = research_gain
+	_update_long_project(state, delta, allow_events)
 	state.demand_per_second = Formulas.demand_per_second(state)
 
 	var uptime: float = delta
@@ -124,6 +154,8 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 	_update_energy_market(state, delta, allow_events)
 	_update_competitor_market(state, delta, allow_events, report)
 	_update_security_events(state, delta, allow_events, report)
+	if allow_events:
+		_update_challenge(state, delta)
 	_update_statistics_history(state, delta)
 	_check_bankruptcy_rescue(state, allow_events)
 	state.notify_changed()
@@ -214,6 +246,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		"advertising_cost": 0.0,
 		"security_wages": 0.0,
 		"manager_wages": 0.0,
+		"research_points": 0.0,
 		"competitor_events": 0,
 		"market_events": 0,
 		"security_events": 0,
@@ -225,7 +258,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		var step: float = minf(chunk_seconds, remaining)
 		remaining -= step
 		var report: Dictionary = advance(state, step, allow_events)
-		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost", "security_wages", "manager_wages"]:
+		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost", "security_wages", "manager_wages", "research_points"]:
 			aggregate[key] = float(aggregate[key]) + float(report[key])
 		for key: String in ["market_events", "security_events", "competitor_events", "threats_detected", "incidents_contained"]:
 			aggregate[key] = int(aggregate[key]) + int(report[key])
@@ -609,6 +642,166 @@ func sign_supply_contract(state: GameState, plan_id: String) -> bool:
 	}
 	state.add_event("%s signed. Procurement has secured a predictable argument." % str(plan["name"]))
 	return true
+
+func research_branch_cost(state: GameState, branch_id: String) -> float:
+	if not RESEARCH_BRANCHES.has(branch_id):
+		return INF
+	var branch: Dictionary = RESEARCH_BRANCHES[branch_id]
+	var level: int = int(state.research_levels.get(branch_id, 0))
+	return float(branch["base_cost"]) * pow(float(branch["scale"]), level)
+
+func advance_research_branch(state: GameState, branch_id: String) -> bool:
+	if not RESEARCH_BRANCHES.has(branch_id):
+		return false
+	var level: int = int(state.research_levels.get(branch_id, 0))
+	if level >= 5:
+		return false
+	var cost: float = research_branch_cost(state, branch_id)
+	if state.research_points < cost:
+		return false
+	state.research_points -= cost
+	state.research_levels[branch_id] = level + 1
+	state.add_event("%s advanced to level %d. The bibliography has become load-bearing." % [str(RESEARCH_BRANCHES[branch_id]["name"]), level + 1])
+	return true
+
+func equipment_costs(state: GameState, equipment_id: String) -> Dictionary:
+	if not RESEARCH_EQUIPMENT.has(equipment_id):
+		return {"cash": INF, "research": INF}
+	var definition: Dictionary = RESEARCH_EQUIPMENT[equipment_id]
+	var level: int = int(state.equipment_levels.get(equipment_id, 0))
+	return {
+		"cash": float(definition["cash_cost"]) * pow(1.7, level),
+		"research": float(definition["research_cost"]) * pow(1.5, level),
+	}
+
+func buy_research_equipment(state: GameState, equipment_id: String) -> bool:
+	if not RESEARCH_EQUIPMENT.has(equipment_id):
+		return false
+	var definition: Dictionary = RESEARCH_EQUIPMENT[equipment_id]
+	var level: int = int(state.equipment_levels.get(equipment_id, 0))
+	if level >= 3:
+		return false
+	var branch_id: String = str(definition["branch"])
+	if int(state.research_levels.get(branch_id, 0)) < int(definition["required_level"]):
+		return false
+	var costs: Dictionary = equipment_costs(state, equipment_id)
+	if state.cash < float(costs["cash"]) or state.research_points < float(costs["research"]):
+		return false
+	state.cash -= float(costs["cash"])
+	state.research_points -= float(costs["research"])
+	state.lifetime_corporate_investment += float(costs["cash"])
+	state.equipment_levels[equipment_id] = level + 1
+	state.add_event("%s installed at level %d. The equipment manual contains several confident arrows." % [str(definition["name"]), level + 1])
+	return true
+
+func start_long_project(state: GameState, project_id: String) -> bool:
+	if not LONG_PROJECTS.has(project_id) or not state.active_long_project.is_empty() or state.completed_long_projects.has(project_id):
+		return false
+	var definition: Dictionary = LONG_PROJECTS[project_id]
+	if state.cash < float(definition["cash_cost"]) or state.research_points < float(definition["research_cost"]):
+		return false
+	state.cash -= float(definition["cash_cost"])
+	state.research_points -= float(definition["research_cost"])
+	state.lifetime_corporate_investment += float(definition["cash_cost"])
+	state.active_long_project = {
+		"id": project_id,
+		"name": definition["name"],
+		"duration": definition["duration"],
+		"time_remaining": definition["duration"],
+	}
+	state.add_event("%s started. The timeline is optimistic and therefore approved." % str(definition["name"]))
+	return true
+
+func _update_long_project(state: GameState, delta: float, allow_events: bool) -> void:
+	if state.active_long_project.is_empty():
+		return
+	state.active_long_project["time_remaining"] = maxf(0.0, float(state.active_long_project.get("time_remaining", 0.0)) - delta)
+	if float(state.active_long_project["time_remaining"]) > 0.0:
+		return
+	var project_id: String = str(state.active_long_project.get("id", ""))
+	var project_name: String = str(state.active_long_project.get("name", "Long-term project"))
+	if not state.completed_long_projects.has(project_id):
+		state.completed_long_projects.append(project_id)
+	state.lifetime_projects_completed += 1
+	match project_id:
+		"closed_loop_materials":
+			state.material_discount += 0.08
+		"predictive_operations":
+			state.production_per_second += 0.75
+			state.wear_reduction += 0.10
+	state.active_long_project = {}
+	if allow_events:
+		state.add_event("%s completed. The final report recommends continued success." % project_name)
+
+func start_challenge(state: GameState, challenge_id: String) -> bool:
+	if not CHALLENGES.has(challenge_id) or not state.active_challenge.is_empty():
+		return false
+	var definition: Dictionary = CHALLENGES[challenge_id]
+	state.active_challenge = {
+		"id": challenge_id,
+		"name": definition["name"],
+		"metric": definition["metric"],
+		"target": definition["target"],
+		"time_remaining": definition["duration"],
+		"duration": definition["duration"],
+		"start_value": _challenge_metric_value(state, str(definition["metric"])),
+		"start_incidents": state.lifetime_incidents_suffered,
+	}
+	state.add_event("%s accepted. Performance has volunteered to become measurable." % str(definition["name"]))
+	return true
+
+func challenge_progress(state: GameState) -> float:
+	if state.active_challenge.is_empty():
+		return 0.0
+	var metric: String = str(state.active_challenge.get("metric", ""))
+	if metric == "incident_free":
+		return float(state.active_challenge.get("duration", 0.0)) - float(state.active_challenge.get("time_remaining", 0.0))
+	return maxf(0.0, _challenge_metric_value(state, metric) - float(state.active_challenge.get("start_value", 0.0)))
+
+func _update_challenge(state: GameState, delta: float) -> void:
+	if state.active_challenge.is_empty():
+		return
+	state.active_challenge["time_remaining"] = maxf(0.0, float(state.active_challenge.get("time_remaining", 0.0)) - delta)
+	var metric: String = str(state.active_challenge.get("metric", ""))
+	if metric == "incident_free" and state.lifetime_incidents_suffered > int(state.active_challenge.get("start_incidents", 0)):
+		_fail_challenge(state, "A security impact interrupted the clean window.")
+		return
+	if challenge_progress(state) >= float(state.active_challenge.get("target", INF)):
+		_complete_challenge(state)
+	elif float(state.active_challenge.get("time_remaining", 0.0)) <= 0.0:
+		_fail_challenge(state, "The deadline arrived before the metric did.")
+
+func _complete_challenge(state: GameState) -> void:
+	var challenge_id: String = str(state.active_challenge.get("id", ""))
+	var name: String = str(state.active_challenge.get("name", "Challenge"))
+	var definition: Dictionary = CHALLENGES.get(challenge_id, {})
+	var cash_reward: float = float(definition.get("reward_cash", 0.0))
+	var research_reward: float = float(definition.get("reward_research", 0.0))
+	state.cash += cash_reward
+	state.research_points += research_reward
+	state.lifetime_research_points += research_reward
+	state.lifetime_challenges_completed += 1
+	if not state.completed_challenge_ids.has(challenge_id):
+		state.completed_challenge_ids.append(challenge_id)
+	state.active_challenge = {}
+	state.add_event("%s completed. Reward: $%s and %s research points." % [name, Formulas.format_number(cash_reward), Formulas.format_number(research_reward)])
+
+func _fail_challenge(state: GameState, reason: String) -> void:
+	var name: String = str(state.active_challenge.get("name", "Challenge"))
+	state.lifetime_challenges_failed += 1
+	state.active_challenge = {}
+	state.add_event("%s failed. %s" % [name, reason])
+
+func _challenge_metric_value(state: GameState, metric: String) -> float:
+	match metric:
+		"cells_made":
+			return state.lifetime_cells_made
+		"revenue":
+			return state.lifetime_revenue
+		"contracts":
+			return state.lifetime_contracts_completed
+		_:
+			return 0.0
 
 func _update_energy_market(state: GameState, delta: float, allow_events: bool) -> void:
 	state.energy_market_timer += delta

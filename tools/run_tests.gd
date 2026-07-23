@@ -28,6 +28,7 @@ func _init() -> void:
 	_test_contracts()
 	_test_cybersecurity_programs()
 	_test_corporate_management()
+	_test_research_and_challenges()
 	_test_offline_advance_has_no_security_events()
 	_test_security_event_effects()
 	_test_bankruptcy_rescue()
@@ -727,6 +728,97 @@ func _test_corporate_management() -> void:
 	_check(stats_state.statistics_history.back().has("production_per_minute"), "statistics include production rate")
 	_check(stats_state.statistics_history.back().has("risk"), "statistics include security risk")
 
+func _test_research_and_challenges() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	var report: Dictionary = simulation.advance(state, 60.0, false)
+	_check(state.research_points > 0.0, "company generates research points over time")
+	_check(is_equal_approx(float(report["research_points"]), state.research_points), "advance reports generated research")
+
+	state.cash = 100000.0
+	state.research_points = 10000.0
+	state.production_per_second = 1.0
+	state.prep_rate = 2.0
+	var material_cost: float = Formulas.material_unit_cost(state)
+	_check(simulation.advance_research_branch(state, "materials"), "materials research can advance")
+	_check(Formulas.material_unit_cost(state) < material_cost, "materials research lowers component cost")
+	var throughput: float = Formulas.automated_throughput(state)
+	_check(simulation.advance_research_branch(state, "manufacturing"), "manufacturing research can advance")
+	_check(Formulas.automated_throughput(state) > throughput, "manufacturing research raises throughput")
+	var demand: float = Formulas.demand_per_second(state)
+	_check(simulation.advance_research_branch(state, "markets"), "market research can advance")
+	_check(Formulas.demand_per_second(state) > demand, "market research raises demand")
+	var detection: float = Formulas.detection_strength(state)
+	_check(simulation.advance_research_branch(state, "cybernetics"), "cybernetics research can advance")
+	_check(Formulas.detection_strength(state) > detection, "cybernetics research raises detection")
+	_check(not simulation.advance_research_branch(state, "unknown"), "unknown research branch rejected")
+
+	var locked_equipment: GameState = GameState.new()
+	locked_equipment.cash = 100000.0
+	locked_equipment.research_points = 10000.0
+	_check(not simulation.buy_research_equipment(locked_equipment, "precision_assembler"), "equipment remains locked without branch requirement")
+	var output_before: float = Formulas.automated_throughput(state)
+	_check(simulation.buy_research_equipment(state, "precision_assembler"), "precision assembler can be installed")
+	_check(Formulas.automated_throughput(state) > output_before, "precision assembler raises output")
+	var capacity_before: float = Formulas.effective_warehouse_capacity(state)
+	_check(simulation.buy_research_equipment(state, "smart_warehouse"), "smart warehouse can be installed")
+	_check(Formulas.effective_warehouse_capacity(state) > capacity_before, "smart warehouse raises capacity")
+	simulation.advance_research_branch(state, "manufacturing")
+	var testing_before: float = Formulas.staffed_testing_rate(state)
+	_check(simulation.buy_research_equipment(state, "laboratory_rig"), "laboratory rig can be installed")
+	_check(Formulas.staffed_testing_rate(state) > testing_before, "laboratory rig raises testing rate")
+	var detection_equipment_before: float = Formulas.detection_strength(state)
+	_check(simulation.buy_research_equipment(state, "threat_console"), "threat console can be installed")
+	_check(Formulas.detection_strength(state) > detection_equipment_before, "threat console raises detection")
+	var analytics_demand_before: float = Formulas.demand_per_second(state)
+	_check(simulation.buy_research_equipment(state, "market_analytics"), "market analytics can be installed")
+	_check(Formulas.demand_per_second(state) > analytics_demand_before, "market analytics raises demand")
+
+	var project_state: GameState = GameState.new()
+	project_state.cash = 100000.0
+	project_state.research_points = 1000.0
+	var base_quality: float = Formulas.effective_quality(project_state)
+	_check(simulation.start_long_project(project_state, "solid_state_prototype"), "long-term project can start")
+	_check(not simulation.start_long_project(project_state, "closed_loop_materials"), "only one long-term project can run")
+	var project_remaining: float = float(project_state.active_long_project["time_remaining"])
+	simulation.advance(project_state, 60.0, false)
+	_check(float(project_state.active_long_project["time_remaining"]) < project_remaining, "long-term projects progress offline")
+	simulation._update_long_project(project_state, 1740.0, false)
+	_check(project_state.completed_long_projects.has("solid_state_prototype"), "long-term project completes over time")
+	_check(Formulas.effective_quality(project_state) > base_quality, "solid-state project improves quality")
+	var discount_before: float = project_state.material_discount
+	_check(simulation.start_long_project(project_state, "closed_loop_materials"), "second long-term project can start after completion")
+	simulation._update_long_project(project_state, 2400.0, false)
+	_check(project_state.material_discount > discount_before, "closed-loop project grants permanent discount")
+	var production_before: float = project_state.production_per_second
+	_check(simulation.start_long_project(project_state, "predictive_operations"), "predictive operations project can start")
+	simulation._update_long_project(project_state, 2100.0, false)
+	_check(project_state.production_per_second > production_before, "predictive operations grants permanent output")
+	_check(project_state.lifetime_projects_completed == 3, "completed projects counted")
+
+	var challenge_state: GameState = GameState.new()
+	challenge_state.cash = 0.0
+	_check(simulation.start_challenge(challenge_state, "production_sprint"), "challenge can start")
+	challenge_state.lifetime_cells_made += 500.0
+	simulation._update_challenge(challenge_state, 1.0)
+	_check(challenge_state.active_challenge.is_empty(), "challenge completes when target reached")
+	_check(challenge_state.lifetime_challenges_completed == 1, "challenge completion counted")
+	_check(challenge_state.cash > 0.0 and challenge_state.research_points > 0.0, "challenge rewards cash and research")
+	_check(challenge_state.completed_challenge_ids.has("production_sprint"), "completed challenge recorded")
+	_check(simulation.start_challenge(challenge_state, "revenue_drive"), "another challenge can start")
+	simulation._update_challenge(challenge_state, 901.0)
+	_check(challenge_state.lifetime_challenges_failed == 1, "expired challenge fails")
+	_check(simulation.start_challenge(challenge_state, "incident_free"), "incident-free challenge can start")
+	var challenge_time: float = float(challenge_state.active_challenge["time_remaining"])
+	simulation.advance(challenge_state, 60.0, false)
+	_check(is_equal_approx(float(challenge_state.active_challenge["time_remaining"]), challenge_time), "challenges pause during offline advance")
+	simulation._update_challenge(challenge_state, 900.0)
+	_check(challenge_state.lifetime_challenges_completed == 2, "incident-free challenge completes clean window")
+	_check(simulation.start_challenge(challenge_state, "incident_free"), "incident-free challenge can be repeated")
+	challenge_state.lifetime_incidents_suffered += 1
+	simulation._update_challenge(challenge_state, 1.0)
+	_check(challenge_state.lifetime_challenges_failed == 2, "security impact fails incident-free challenge")
+
 func _test_offline_advance_has_no_security_events() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
@@ -846,6 +938,17 @@ func _test_save_round_trip() -> void:
 	state.lifetime_corporate_investment = 808.0
 	state.statistics_timer = 12.0
 	state.statistics_history = [{"time": 60.0, "cash": 10.0, "production_per_minute": 2.0, "risk": 0.1}]
+	state.research_points = 91.0
+	state.lifetime_research_points = 191.0
+	state.research_levels = {"materials": 5, "manufacturing": 4, "markets": 3, "cybernetics": 2}
+	state.equipment_levels = {"precision_assembler": 3, "smart_warehouse": 2, "laboratory_rig": 1, "threat_console": 2, "market_analytics": 3}
+	state.active_long_project = {"id": "predictive_operations", "name": "Test Project", "duration": 2100.0, "time_remaining": 500.0}
+	state.completed_long_projects = ["solid_state_prototype", "closed_loop_materials"]
+	state.lifetime_projects_completed = 2
+	state.active_challenge = {"id": "revenue_drive", "name": "Test Challenge", "metric": "revenue", "target": 5000.0, "start_value": 100.0, "duration": 900.0, "time_remaining": 450.0}
+	state.lifetime_challenges_completed = 4
+	state.lifetime_challenges_failed = 2
+	state.completed_challenge_ids = ["production_sprint", "incident_free"]
 	state.advertising_channels["business_directory"] = true
 	state.lifetime_advertising_spend = 77.0
 	state.competitor_name = "Test Power Ltd"
@@ -917,6 +1020,16 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.lifetime_manager_wages, 707.0), "manager wages restored")
 	_check(is_equal_approx(loaded.lifetime_corporate_investment, 808.0), "corporate investment restored")
 	_check(loaded.statistics_history.size() == 1, "detailed statistics history restored")
+	_check(is_equal_approx(loaded.research_points, 91.0), "available research points restored")
+	_check(is_equal_approx(loaded.lifetime_research_points, 191.0), "lifetime research points restored")
+	_check(int(loaded.research_levels["manufacturing"]) == 4, "research branches restored")
+	_check(int(loaded.equipment_levels["market_analytics"]) == 3, "research equipment restored")
+	_check(str(loaded.active_long_project.get("id", "")) == "predictive_operations", "active long-term project restored")
+	_check(loaded.completed_long_projects.has("solid_state_prototype"), "completed long-term projects restored")
+	_check(loaded.lifetime_projects_completed == 2, "project completion count restored")
+	_check(str(loaded.active_challenge.get("id", "")) == "revenue_drive", "active challenge restored")
+	_check(loaded.lifetime_challenges_completed == 4 and loaded.lifetime_challenges_failed == 2, "challenge totals restored")
+	_check(loaded.completed_challenge_ids.has("incident_free"), "completed challenge history restored")
 	_check(bool(loaded.advertising_channels.get("business_directory", false)), "advertising channel restored")
 	_check(is_equal_approx(loaded.lifetime_advertising_spend, 77.0), "advertising spend restored")
 	_check(loaded.competitor_name == "Test Power Ltd", "competitor name restored")

@@ -4,6 +4,20 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.21 — 2026-07-23
+
+Milestone Five: Research and Challenges complete.
+
+- Added a Research workspace with continuous research generation, four branches, five equipment lines, three long-term projects, and four opt-in challenges.
+- Added five levels each of Materials Science, Manufacturing Systems, Market Intelligence, and Industrial Cybernetics, affecting kit prices, throughput, demand, and threat detection.
+- Added three levels each of Precision Assemblers, Smart Warehouse Grids, Laboratory Test Rigs, Threat Analysis Consoles, and Market Analytics Clusters with branch prerequisites and scaling cash/research costs.
+- Added Solid-State Prototype, Closed-Loop Materials Pilot, and Predictive Operations Rollout projects with upfront investment, online/offline progress, persistent completion, and permanent company effects.
+- Added timed Production, Revenue, Incident-Free, and Contract Delivery challenges with live progress, cash/research rewards, completion history, failure tracking, and offline pausing.
+- Research-point generation scales with factories, departments, and active managers and is included in chunked offline reports.
+- Persisted research currency, branches, equipment, active/completed projects, active challenges, challenge outcomes, and completion history.
+- Added a ten-hour research handoff harness that maxes every branch and equipment line and completes every project and challenge.
+- Added `docs/MILESTONE_FIVE_ACCEPTANCE.md` and expanded the headless suite across all Milestone Five systems.
+
 ## 0.20 — 2026-07-23
 
 Milestone Four: Corporate Management complete.

@@ -33,6 +33,8 @@ The project is currently focused on the first garage-stage MVP:
 - `docs/MILESTONE_THREE_ACCEPTANCE.md` - completed Industrial Cybersecurity acceptance criteria and validation record
 - `docs/MILESTONE_FOUR_ACCEPTANCE.md` - completed Corporate Management acceptance criteria and validation record
 - `tools/corporate_harness.gd` - two-hour corporate progression and balance validation
+- `docs/MILESTONE_FIVE_ACCEPTANCE.md` - completed Research and Challenges acceptance criteria and validation record
+- `tools/research_harness.gd` - ten-hour research, project, equipment, and challenge progression validation
 
 ## Next Implementation Step
 
