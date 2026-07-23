@@ -109,6 +109,8 @@ const WORKER_STAGE_RATE: float = 0.4
 const WORKER_WAGE_PER_SECOND: float = 0.06
 const WORKER_HIRING_FEE: float = 150.0
 const MAX_WORKERS_PER_ROLE: int = 2
+const SECURITY_STAFF_WAGE_PER_SECOND: float = 0.12
+const MAX_SECURITY_STAFF: int = 3
 
 static func active_workers(state: GameState, role: String) -> int:
 	if state.staff_striking:
@@ -148,7 +150,26 @@ static func effective_quality(state: GameState) -> float:
 	return state.quality * condition_factor * testing_factor
 
 static func effective_risk(state: GameState) -> float:
-	return clampf(state.risk - state.risk_reduction, 0.0, 1.0)
+	var network_reduction: float = state.network_segmentation_level * 0.04
+	return clampf(state.risk - state.risk_reduction - network_reduction, 0.0, 1.0)
+
+static func active_security_staff(state: GameState) -> int:
+	return state.security_staff if state.security_staff_on_duty else 0
+
+static func detection_strength(state: GameState) -> float:
+	return clampf(state.detection_level * 0.16 + active_security_staff(state) * 0.10, 0.0, 0.85)
+
+static func response_strength(state: GameState) -> float:
+	return clampf(state.incident_response_level * 0.15 + active_security_staff(state) * 0.08, 0.0, 0.80)
+
+static func recovery_strength(state: GameState) -> float:
+	return clampf(state.recovery + state.recovery_plan_level * 0.12, 0.0, 0.85)
+
+static func segmentation_mitigation(state: GameState) -> float:
+	return clampf(state.network_segmentation_level * 0.15, 0.0, 0.45)
+
+static func network_zone_count(state: GameState) -> int:
+	return 1 + state.network_segmentation_level
 
 static func material_unit_cost(state: GameState) -> float:
 	return maxf(0.05, state.material_price * (1.0 - clampf(state.material_discount, 0.0, 0.85)))

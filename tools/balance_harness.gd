@@ -28,6 +28,7 @@ func _run_playthrough(sale_price: float) -> void:
 	var next_report: float = REPORT_INTERVAL
 	var first_automation_at: float = -1.0
 	var upgrades_bought: int = 0
+	var cyber_upgrades_bought: int = 0
 	var first_approved_at: float = -1.0
 	var first_assured_at: float = -1.0
 
@@ -91,6 +92,23 @@ func _run_playthrough(sale_price: float) -> void:
 		if state.machine_condition < 0.7 and state.cash >= Formulas.service_cost(state) + 20.0:
 			simulation.service_machines(state)
 
+		# Build a balanced security programme once the workshop is online.
+		if elapsed >= 900.0 and (state.risk > 0.10 or state.security_staff > 0):
+			var cyber_choice: String = ""
+			var cyber_level: int = 4
+			for program_id: String in ["segmentation", "detection", "response", "recovery"]:
+				var field: String = str(Simulation.CYBER_PROGRAMS[program_id]["state_field"])
+				var level: int = int(state.get(field))
+				if level < cyber_level and level < 3:
+					cyber_level = level
+					cyber_choice = program_id
+			if not cyber_choice.is_empty():
+				var cyber_cost: float = simulation.cyber_program_cost(state, cyber_choice)
+				if state.cash >= cyber_cost + 100.0 and simulation.upgrade_cyber_program(state, cyber_choice):
+					cyber_upgrades_bought += 1
+			if state.security_staff < mini(Formulas.MAX_SECURITY_STAFF, state.detection_level) and state.cash >= Simulation.SECURITY_STAFF_HIRING_FEE + 800.0:
+				simulation.hire_security_staff(state)
+
 		# Greedy: buy the cheapest affordable upgrade, keeping a cash reserve.
 		var best: Dictionary = {}
 		var best_cost: float = INF
@@ -134,7 +152,7 @@ func _run_playthrough(sale_price: float) -> void:
 		if int(state.upgrade_levels.get(id, 0)) >= int(definition.get("max_level", 1)):
 			maxed += 1
 	var spot_revenue: float = state.lifetime_revenue - state.lifetime_contract_revenue
-	var tracked_costs: float = state.lifetime_material_spend + state.lifetime_energy_cost + state.lifetime_wages_paid + state.lifetime_advertising_spend + state.lifetime_maintenance_spend + state.lifetime_hiring_spend + state.lifetime_upgrade_spend + state.lifetime_security_losses
+	var tracked_costs: float = state.lifetime_material_spend + state.lifetime_energy_cost + state.lifetime_wages_paid + state.lifetime_security_wages + state.lifetime_advertising_spend + state.lifetime_maintenance_spend + state.lifetime_hiring_spend + state.lifetime_upgrade_spend + state.lifetime_security_losses
 	print("Summary: spot $%s + contracts $%s | costs $%s (kits %s, energy %s, wages %s, upgrades %s) | first automation %.0fs | upgrades %d | maxed %d/%d" % [
 		Formulas.format_number(spot_revenue),
 		Formulas.format_number(state.lifetime_contract_revenue),
@@ -153,6 +171,11 @@ func _run_playthrough(sale_price: float) -> void:
 		float(state.reputation["quality"]), float(state.reputation["security"]),
 		int(state.lifetime_contracts_by_tier["Open Market"]), int(state.lifetime_contracts_by_tier["Approved Supplier"]),
 		int(state.lifetime_contracts_by_tier["Assured Supply"]), first_approved_at, first_assured_at
+	])
+	print("Cybersecurity: zones %d | detection L%d | response L%d | recovery L%d | analysts %d | upgrades %d | detected %d | contained %d | impacts %d" % [
+		Formulas.network_zone_count(state), state.detection_level, state.incident_response_level,
+		state.recovery_plan_level, state.security_staff, cyber_upgrades_bought,
+		state.lifetime_threats_detected, state.lifetime_incidents_contained, state.lifetime_incidents_suffered
 	])
 
 func _load_upgrades() -> Array[Dictionary]:

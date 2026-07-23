@@ -4,6 +4,20 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.19 — 2026-07-23
+
+Milestone Three: Industrial Cybersecurity complete.
+
+- Added a dedicated Security workspace with a live network map covering the public edge, office systems, production controllers, and recovery store.
+- Added four levels of network topology, from one flat workshop LAN through separated Office and Production zones, an isolated Recovery zone, and a public-edge DMZ.
+- Added three-level programmes for segmentation, threat detection, incident response, and recovery planning with escalating investment costs.
+- Security incidents now pass through detection and containment; detected but uncontained incidents receive response mitigation, while segmentation limits blast radius and recovery reduces residual damage.
+- Added up to three security analysts who improve detection and response, charge continuous wages, and go off duty when payroll is missed.
+- Added an Incident Desk with affected zone, outcome, last-event detail, detected/contained/impact totals, and security losses.
+- Persisted the complete cybersecurity programme, staffing, payroll, incident history, and lifetime statistics.
+- Extended the balance bot to invest in cybersecurity and report programme progression and incident outcomes.
+- Added `docs/MILESTONE_THREE_ACCEPTANCE.md` and expanded the headless suite across every Milestone Three system.
+
 ## 0.18 — 2026-07-23
 
 Milestone Two: Market Depth complete.

@@ -30,6 +30,7 @@ The project is currently focused on the first garage-stage MVP:
 - `scripts/save_manager.gd` - JSON save/load
 - `data/upgrades/garage_upgrades.json` - starter upgrade definitions
 - `docs/MILESTONE_TWO_ACCEPTANCE.md` - completed Market Depth acceptance criteria and validation record
+- `docs/MILESTONE_THREE_ACCEPTANCE.md` - completed Industrial Cybersecurity acceptance criteria and validation record
 
 ## Next Implementation Step
 

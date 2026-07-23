@@ -60,6 +60,17 @@ var reputation: Dictionary = {
 }
 var security_event_timer: float = 0.0
 var production_downtime: float = 0.0
+var network_segmentation_level: int = 0
+var detection_level: int = 0
+var incident_response_level: int = 0
+var recovery_plan_level: int = 0
+var security_staff: int = 0
+var security_staff_on_duty: bool = true
+var lifetime_security_wages: float = 0.0
+var lifetime_threats_detected: int = 0
+var lifetime_incidents_contained: int = 0
+var lifetime_incidents_suffered: int = 0
+var last_security_incident: Dictionary = {}
 
 var demand_per_second: float = 0.0
 var sales_per_second: float = 0.0
@@ -151,6 +162,17 @@ func to_save_data() -> Dictionary:
 		"reputation": reputation,
 		"security_event_timer": security_event_timer,
 		"production_downtime": production_downtime,
+		"network_segmentation_level": network_segmentation_level,
+		"detection_level": detection_level,
+		"incident_response_level": incident_response_level,
+		"recovery_plan_level": recovery_plan_level,
+		"security_staff": security_staff,
+		"security_staff_on_duty": security_staff_on_duty,
+		"lifetime_security_wages": lifetime_security_wages,
+		"lifetime_threats_detected": lifetime_threats_detected,
+		"lifetime_incidents_contained": lifetime_incidents_contained,
+		"lifetime_incidents_suffered": lifetime_incidents_suffered,
+		"last_security_incident": last_security_incident,
 		"demand_per_second": demand_per_second,
 		"sales_per_second": sales_per_second,
 		"lifetime_cells_made": lifetime_cells_made,
@@ -242,6 +264,17 @@ func load_save_data(data: Dictionary) -> void:
 		reputation[category] = clampf(float(loaded_reputation.get(category, fallback)), 0.0, 100.0)
 	security_event_timer = float(data.get("security_event_timer", security_event_timer))
 	production_downtime = float(data.get("production_downtime", production_downtime))
+	network_segmentation_level = clampi(int(data.get("network_segmentation_level", network_segmentation_level)), 0, 3)
+	detection_level = clampi(int(data.get("detection_level", detection_level)), 0, 3)
+	incident_response_level = clampi(int(data.get("incident_response_level", incident_response_level)), 0, 3)
+	recovery_plan_level = clampi(int(data.get("recovery_plan_level", recovery_plan_level)), 0, 3)
+	security_staff = clampi(int(data.get("security_staff", security_staff)), 0, 3)
+	security_staff_on_duty = bool(data.get("security_staff_on_duty", security_staff_on_duty))
+	lifetime_security_wages = float(data.get("lifetime_security_wages", lifetime_security_wages))
+	lifetime_threats_detected = int(data.get("lifetime_threats_detected", lifetime_threats_detected))
+	lifetime_incidents_contained = int(data.get("lifetime_incidents_contained", lifetime_incidents_contained))
+	lifetime_incidents_suffered = int(data.get("lifetime_incidents_suffered", lifetime_incidents_suffered))
+	last_security_incident = data.get("last_security_incident", {})
 	demand_per_second = float(data.get("demand_per_second", demand_per_second))
 	sales_per_second = float(data.get("sales_per_second", sales_per_second))
 	lifetime_cells_made = float(data.get("lifetime_cells_made", lifetime_cells_made))

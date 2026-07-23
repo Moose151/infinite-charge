@@ -61,6 +61,14 @@ var reputation_label: Label
 var workshop_stage_label: Label
 var workshop_station_labels: Dictionary = {}
 var operations_watch_label: Label
+var cyber_program_labels: Dictionary = {}
+var cyber_program_buttons: Dictionary = {}
+var network_map_label: Label
+var network_asset_labels: Dictionary = {}
+var security_staff_label: Label
+var hire_security_button: Button
+var fire_security_button: Button
+var security_incident_label: Label
 
 const UI_SCALES: Array[float] = [1.0]
 const THEME_IDS: Array[String] = ["workshop", "corporate", "solar"]
@@ -172,6 +180,9 @@ func _build_ui() -> void:
 	var company_panel: PanelContainer = _make_panel("COMPANY  ·  People, contracts and growth")
 	company_panel.name = "Company"
 	tabs.add_child(company_panel)
+	var security_panel: PanelContainer = _make_panel("SECURITY  ·  Map, detect, contain and recover")
+	security_panel.name = "Security"
+	tabs.add_child(security_panel)
 	var office_panel: PanelContainer = _make_panel("OFFICE  ·  Controls and company records")
 	office_panel.name = "Office"
 	tabs.add_child(office_panel)
@@ -184,6 +195,7 @@ func _build_ui() -> void:
 	var operations: VBoxContainer = operations_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var market: VBoxContainer = market_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var company: VBoxContainer = company_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var security: VBoxContainer = security_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var office: VBoxContainer = office_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var activity: VBoxContainer = activity_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 
@@ -307,6 +319,49 @@ func _build_ui() -> void:
 		staff_row.add_child(fire_button)
 
 	wage_label = _add_label(staff_card)
+
+	var network_card: VBoxContainer = _make_card(security, "Network Map")
+	network_map_label = _add_label(network_card)
+	network_map_label.theme_type_variation = "SubtitleLabel"
+	var network_grid: GridContainer = GridContainer.new()
+	network_grid.columns = 2
+	network_grid.add_theme_constant_override("h_separation", 8)
+	network_grid.add_theme_constant_override("v_separation", 8)
+	network_card.add_child(network_grid)
+	for node: Dictionary in [
+		{"id": "edge", "title": "INTERNET EDGE"},
+		{"id": "office", "title": "OFFICE SYSTEMS"},
+		{"id": "production", "title": "PRODUCTION"},
+		{"id": "recovery", "title": "RECOVERY STORE"},
+	]:
+		_add_security_node(network_grid, str(node["id"]), str(node["title"]))
+
+	var cyber_controls_card: VBoxContainer = _make_card(security, "Cybersecurity Programme")
+	for program: Dictionary in [
+		{"id": "segmentation", "title": "Network Zones & Segmentation"},
+		{"id": "detection", "title": "Threat Detection"},
+		{"id": "response", "title": "Incident Response"},
+		{"id": "recovery", "title": "Recovery Planning"},
+	]:
+		_add_cyber_program_row(cyber_controls_card, str(program["id"]), str(program["title"]))
+
+	var security_staff_card: VBoxContainer = _make_card(security, "Security Staff")
+	security_staff_label = _add_label(security_staff_card)
+	var security_staff_buttons: HBoxContainer = HBoxContainer.new()
+	security_staff_buttons.add_theme_constant_override("separation", 8)
+	security_staff_card.add_child(security_staff_buttons)
+	hire_security_button = Button.new()
+	hire_security_button.text = "Hire analyst"
+	hire_security_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hire_security_button.pressed.connect(func() -> void: simulation.hire_security_staff(state))
+	security_staff_buttons.add_child(hire_security_button)
+	fire_security_button = Button.new()
+	fire_security_button.text = "Let go"
+	fire_security_button.pressed.connect(func() -> void: simulation.fire_security_staff(state))
+	security_staff_buttons.add_child(fire_security_button)
+
+	var incident_card: VBoxContainer = _make_card(security, "Incident Desk")
+	security_incident_label = _add_label(incident_card)
 
 	var contracts_card: VBoxContainer = _make_card(company, "Contracts")
 	reputation_label = _add_label(contracts_card)
@@ -654,6 +709,47 @@ func _add_workshop_station(parent: Control, id: String, title: String) -> void:
 	stack.add_child(status)
 	workshop_station_labels[id] = status
 
+func _add_security_node(parent: Control, id: String, title: String) -> void:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.theme_type_variation = "CardPanel"
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(220.0, 82.0)
+	parent.add_child(panel)
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 7)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 7)
+	panel.add_child(margin)
+	var stack: VBoxContainer = VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 4)
+	margin.add_child(stack)
+	var heading: Label = Label.new()
+	heading.text = title
+	heading.theme_type_variation = "SectionHeading"
+	heading.add_theme_font_size_override("font_size", 11)
+	stack.add_child(heading)
+	var status: Label = Label.new()
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stack.add_child(status)
+	network_asset_labels[id] = status
+
+func _add_cyber_program_row(parent: Control, id: String, title: String) -> void:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var label: Label = Label.new()
+	label.text = title
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(label)
+	cyber_program_labels[id] = label
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(132.0, 0.0)
+	button.pressed.connect(func() -> void: simulation.upgrade_cyber_program(state, id))
+	row.add_child(button)
+	cyber_program_buttons[id] = button
+
 func _on_price_changed(value: float) -> void:
 	state.sale_price = value
 	state.demand_per_second = Formulas.demand_per_second(state)
@@ -796,7 +892,7 @@ func _refresh_ui() -> void:
 	risk_bar.max_value = 100.0
 	risk_bar.value = Formulas.effective_risk(state) * 100.0
 	var spot_revenue: float = state.lifetime_revenue - state.lifetime_contract_revenue
-	stats_label.text = "OUTPUT\nMade: %s cells | Sold: %s cells | Unfilled orders: %s\n\nINCOME\nSpot sales: $%s | Contracts: $%s | Total: $%s\n\nSPENDING\nComponent kits: $%s | Energy: $%s | Wages: $%s\nUpgrades: $%s | Hiring: $%s | Maintenance: $%s\nAdvertising: $%s | Security losses: $%s\n\nTime operated: %s" % [
+	stats_label.text = "OUTPUT\nMade: %s cells | Sold: %s cells | Unfilled orders: %s\n\nINCOME\nSpot sales: $%s | Contracts: $%s | Total: $%s\n\nSPENDING\nComponent kits: $%s | Energy: $%s | Production wages: $%s\nSecurity wages: $%s | Upgrades: $%s | Hiring: $%s | Maintenance: $%s\nAdvertising: $%s | Security losses: $%s\n\nTime operated: %s" % [
 		Formulas.format_number(state.lifetime_cells_made),
 		Formulas.format_number(state.lifetime_cells_sold),
 		Formulas.format_number(state.lifetime_sales_lost),
@@ -806,6 +902,7 @@ func _refresh_ui() -> void:
 		Formulas.format_number(state.lifetime_material_spend),
 		Formulas.format_number(state.lifetime_energy_cost),
 		Formulas.format_number(state.lifetime_wages_paid),
+		Formulas.format_number(state.lifetime_security_wages),
 		Formulas.format_number(state.lifetime_upgrade_spend),
 		Formulas.format_number(state.lifetime_hiring_spend),
 		Formulas.format_number(state.lifetime_maintenance_spend),
@@ -864,6 +961,7 @@ func _refresh_ui() -> void:
 	_update_maintenance_row()
 	_update_contracts_section()
 	_update_staff_section()
+	_update_cybersecurity_section()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
 	var margin_status: String = "PROFITABLE" if estimated_margin > 0.0 else "LOSS-MAKING"
@@ -890,7 +988,7 @@ func _refresh_ui() -> void:
 
 func _update_finance_section() -> void:
 	var income: float = state.lifetime_revenue
-	var spending: float = state.lifetime_material_spend + state.lifetime_energy_cost + state.lifetime_wages_paid + state.lifetime_upgrade_spend + state.lifetime_hiring_spend + state.lifetime_maintenance_spend + state.lifetime_advertising_spend + state.lifetime_security_losses
+	var spending: float = state.lifetime_material_spend + state.lifetime_energy_cost + state.lifetime_wages_paid + state.lifetime_security_wages + state.lifetime_upgrade_spend + state.lifetime_hiring_spend + state.lifetime_maintenance_spend + state.lifetime_advertising_spend + state.lifetime_security_losses
 	finance_label.text = "Standard margin: $%s/cell | Long-Life margin: $%s/cell\nRecorded income: $%s | Recorded spending: $%s | Net cash flow: $%s" % [
 		Formulas.format_number(Formulas.estimated_margin_per_cell(state, "standard")),
 		Formulas.format_number(Formulas.estimated_margin_per_cell(state, "premium")),
@@ -1167,6 +1265,103 @@ func _update_contracts_section() -> void:
 			int(state.lifetime_contracts_by_tier.get("Approved Supplier", 0)),
 			int(state.lifetime_contracts_by_tier.get("Assured Supply", 0))
 		]
+
+func _update_cybersecurity_section() -> void:
+	var zones: int = Formulas.network_zone_count(state)
+	var topology: String = ["Flat workshop LAN", "Office / Production split", "Recovery zone isolated", "Public edge DMZ"][state.network_segmentation_level]
+	network_map_label.text = "%s  ·  %d zone%s  ·  risk %d%%\nInternet Edge → Office Systems → Production; Recovery Store attached to Office." % [
+		topology,
+		zones,
+		"" if zones == 1 else "s",
+		roundi(Formulas.effective_risk(state) * 100.0)
+	]
+	var storefront_level: int = int(state.upgrade_levels.get("online_storefront", 0))
+	var firewall_level: int = int(state.upgrade_levels.get("firewall", 0))
+	var mfa_level: int = int(state.upgrade_levels.get("multifactor_authentication", 0))
+	var backup_level: int = int(state.upgrade_levels.get("backups", 0))
+	var controllers: int = int(state.upgrade_levels.get("workbench_automation", 0)) + int(state.upgrade_levels.get("prep_station", 0)) + int(state.upgrade_levels.get("testing_bench", 0))
+	_set_security_node("edge", "%s · %s\n%s" % [
+		"Public" if storefront_level > 0 else "No public service",
+		"DMZ" if state.network_segmentation_level >= 3 else "Shared boundary",
+		"Firewall L%d" % firewall_level if firewall_level > 0 else "Unfiltered edge"
+	])
+	_set_security_node("office", "Operations · supplier records\n%s · Zone %s" % [
+		"MFA L%d" % mfa_level if mfa_level > 0 else "Password only",
+		"Office" if state.network_segmentation_level >= 1 else "Shared"
+	])
+	_set_security_node("production", "%d connected controller%s\nZone %s" % [
+		controllers,
+		"" if controllers == 1 else "s",
+		"Production" if state.network_segmentation_level >= 1 else "Shared"
+	])
+	_set_security_node("recovery", "%s\nZone %s · effective recovery %d%%" % [
+		"Backup sets L%d" % backup_level if backup_level > 0 else "No backup sets",
+		"Recovery" if state.network_segmentation_level >= 2 else ("Office" if state.network_segmentation_level >= 1 else "Shared"),
+		roundi(Formulas.recovery_strength(state) * 100.0)
+	])
+
+	var program_fields: Dictionary = {
+		"segmentation": "network_segmentation_level",
+		"detection": "detection_level",
+		"response": "incident_response_level",
+		"recovery": "recovery_plan_level",
+	}
+	var program_effects: Dictionary = {
+		"segmentation": "%d zones · %d%% blast-radius reduction" % [zones, roundi(Formulas.segmentation_mitigation(state) * 100.0)],
+		"detection": "%d%% detection strength" % roundi(Formulas.detection_strength(state) * 100.0),
+		"response": "%d%% response strength" % roundi(Formulas.response_strength(state) * 100.0),
+		"recovery": "%d%% effective recovery" % roundi(Formulas.recovery_strength(state) * 100.0),
+	}
+	var program_names: Dictionary = {
+		"segmentation": "Network Zones & Segmentation",
+		"detection": "Threat Detection",
+		"response": "Incident Response",
+		"recovery": "Recovery Planning",
+	}
+	for program_id: String in cyber_program_labels:
+		var level: int = int(state.get(str(program_fields[program_id])))
+		var label: Label = cyber_program_labels[program_id] as Label
+		label.text = "%s · L%d/3\n%s" % [str(program_names[program_id]), level, str(program_effects[program_id])]
+		var button: Button = cyber_program_buttons[program_id] as Button
+		if level >= 3:
+			button.text = "Complete"
+			button.disabled = true
+		else:
+			var cost: float = simulation.cyber_program_cost(state, program_id)
+			button.text = "Advance · $%s" % Formulas.format_number(cost)
+			button.disabled = state.cash < cost
+
+	var staff_status: String = "ON DUTY" if state.security_staff_on_duty else "OFF DUTY — PAYROLL"
+	security_staff_label.text = "Analysts: %d/%d · %s\nWages $%s/min · each analyst improves detection and response." % [
+		state.security_staff,
+		Formulas.MAX_SECURITY_STAFF,
+		staff_status,
+		Formulas.format_number(state.security_staff * Formulas.SECURITY_STAFF_WAGE_PER_SECOND * 60.0)
+	]
+	hire_security_button.disabled = state.security_staff >= Formulas.MAX_SECURITY_STAFF or state.cash < Simulation.SECURITY_STAFF_HIRING_FEE
+	hire_security_button.text = "Hire analyst · $%s" % Formulas.format_number(Simulation.SECURITY_STAFF_HIRING_FEE)
+	fire_security_button.disabled = state.security_staff <= 0
+
+	var incident_summary: String = "No recorded cybersecurity incidents."
+	if not state.last_security_incident.is_empty():
+		incident_summary = "Last: %s · %s · %s\n%s" % [
+			str(state.last_security_incident.get("status", "recorded")).capitalize(),
+			str(state.last_security_incident.get("zone", "Workshop LAN")),
+			str(state.last_security_incident.get("type", "event")).capitalize(),
+			str(state.last_security_incident.get("message", "The report contains several rectangles."))
+		]
+	security_incident_label.text = "%s\nDetected: %d · Contained: %d · Impact incidents: %d\nSecurity losses: $%s" % [
+		incident_summary,
+		state.lifetime_threats_detected,
+		state.lifetime_incidents_contained,
+		state.lifetime_incidents_suffered,
+		Formulas.format_number(state.lifetime_security_losses)
+	]
+
+func _set_security_node(id: String, text: String) -> void:
+	var label: Label = network_asset_labels.get(id) as Label
+	if label != null:
+		label.text = text
 
 func _sync_ui_scale_option() -> void:
 	var selected_index: int = 0

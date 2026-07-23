@@ -26,6 +26,7 @@ func _init() -> void:
 	_test_energy()
 	_test_employees()
 	_test_contracts()
+	_test_cybersecurity_programs()
 	_test_offline_advance_has_no_security_events()
 	_test_security_event_effects()
 	_test_bankruptcy_rescue()
@@ -567,6 +568,76 @@ func _test_contracts() -> void:
 	simulation.advance(paused, 60.0, false)
 	_check(not paused.contract_offer.is_empty(), "contracts pause during offline advance")
 
+func _test_cybersecurity_programs() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.cash = 10000.0
+	var starting_risk: float = Formulas.effective_risk(state)
+	_check(simulation.upgrade_cyber_program(state, "segmentation"), "segmentation programme can advance")
+	_check(state.network_segmentation_level == 1, "segmentation level stored")
+	_check(Formulas.network_zone_count(state) == 2, "segmentation creates a second network zone")
+	_check(Formulas.effective_risk(state) < starting_risk, "segmentation lowers effective risk")
+	_check(simulation.upgrade_cyber_program(state, "detection"), "detection programme can advance")
+	_check(Formulas.detection_strength(state) > 0.0, "detection programme creates detection strength")
+	var detection_level_two_cost: float = simulation.cyber_program_cost(state, "detection")
+	_check(detection_level_two_cost > float(Simulation.CYBER_PROGRAMS["detection"]["base_cost"]), "cybersecurity programme costs escalate")
+	simulation.upgrade_cyber_program(state, "detection")
+	simulation.upgrade_cyber_program(state, "detection")
+	_check(state.detection_level == 3, "cybersecurity programmes cap at level three")
+	_check(not simulation.upgrade_cyber_program(state, "detection"), "completed cybersecurity programme rejects extra levels")
+	_check(simulation.upgrade_cyber_program(state, "response"), "response programme can advance")
+	_check(Formulas.response_strength(state) > 0.0, "response programme creates response strength")
+	_check(simulation.upgrade_cyber_program(state, "recovery"), "recovery programme can advance")
+	_check(Formulas.recovery_strength(state) > 0.0, "recovery programme creates recovery strength")
+	_check(not simulation.upgrade_cyber_program(state, "unknown"), "unknown cybersecurity programme rejected")
+
+	var hire_cash: float = state.cash
+	_check(simulation.hire_security_staff(state), "security analyst can be hired")
+	_check(state.security_staff == 1 and state.cash < hire_cash, "security hiring fee charged")
+	var wages_before: float = state.lifetime_security_wages
+	simulation.advance(state, 10.0, false)
+	_check(is_equal_approx(state.lifetime_security_wages - wages_before, 1.2), "security analyst wages paid continuously")
+	state.cash = 0.0
+	simulation.advance(state, 1.0, false)
+	_check(not state.security_staff_on_duty, "unpaid security staff go off duty")
+	_check(is_equal_approx(Formulas.detection_strength(state), state.detection_level * 0.16), "off-duty analysts stop boosting detection")
+	state.cash = 100.0
+	simulation.advance(state, 1.0, false)
+	_check(state.security_staff_on_duty, "security staff resume after payroll recovers")
+	_check(simulation.fire_security_staff(state), "security analyst can be released")
+
+	var exposed: GameState = GameState.new()
+	var defended: GameState = GameState.new()
+	exposed.cash = 1000.0
+	defended.cash = 1000.0
+	defended.network_segmentation_level = 3
+	defended.incident_response_level = 3
+	defended.recovery_plan_level = 3
+	var exposed_report: Dictionary = {"security_losses": 0.0, "security_events": 0}
+	var defended_report: Dictionary = {"security_losses": 0.0, "security_events": 0}
+	var cash_event: Dictionary = {"type": "cash", "severity_min": 0.2, "severity_max": 0.2, "message": "Test incident."}
+	simulation.rng.seed = 7
+	simulation._trigger_security_event(exposed, cash_event, exposed_report)
+	simulation.rng.seed = 7
+	simulation._trigger_security_event(defended, cash_event, defended_report, true)
+	_check(float(defended_report["security_losses"]) < float(exposed_report["security_losses"]), "segmentation, response and recovery reduce incident impact")
+	_check(Formulas.network_zone_count(defended) == 4, "full segmentation creates four network zones")
+	_check(str(defended.last_security_incident.get("zone", "")) == "Office Systems", "incident records affected network zone")
+
+	var monitored: GameState = GameState.new()
+	monitored.cash = 100000.0
+	monitored.detection_level = 3
+	monitored.incident_response_level = 3
+	monitored.security_staff = 3
+	var monitor_simulation: Simulation = _make_sim()
+	monitor_simulation.security_event_period = 1.0
+	monitor_simulation.security_base_chance = 1.0
+	monitor_simulation.security_risk_chance_scale = 0.0
+	var monitor_report: Dictionary = monitor_simulation.advance(monitored, 20.0, true)
+	_check(int(monitor_report["threats_detected"]) > 0, "detection identifies live threats")
+	_check(int(monitor_report["incidents_contained"]) > 0, "incident response contains detected threats")
+	_check(monitored.lifetime_incidents_contained == int(monitor_report["incidents_contained"]), "containment lifetime statistic tracked")
+
 func _test_offline_advance_has_no_security_events() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
@@ -661,6 +732,17 @@ func _test_save_round_trip() -> void:
 	state.lifetime_hiring_spend = 404.0
 	state.reputation = {"general": 61.0, "delivery": 72.0, "quality": 83.0, "security": 94.0}
 	state.lifetime_contracts_by_tier = {"Open Market": 4, "Approved Supplier": 2, "Assured Supply": 1}
+	state.network_segmentation_level = 3
+	state.detection_level = 2
+	state.incident_response_level = 1
+	state.recovery_plan_level = 3
+	state.security_staff = 2
+	state.security_staff_on_duty = false
+	state.lifetime_security_wages = 505.0
+	state.lifetime_threats_detected = 12
+	state.lifetime_incidents_contained = 8
+	state.lifetime_incidents_suffered = 4
+	state.last_security_incident = {"status": "contained", "zone": "Production", "type": "downtime", "message": "Test alert."}
 	state.advertising_channels["business_directory"] = true
 	state.lifetime_advertising_spend = 77.0
 	state.competitor_name = "Test Power Ltd"
@@ -710,6 +792,16 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(float(loaded.reputation["quality"]), 83.0), "quality reputation restored")
 	_check(is_equal_approx(float(loaded.reputation["security"]), 94.0), "security reputation restored")
 	_check(int(loaded.lifetime_contracts_by_tier["Approved Supplier"]) == 2, "contract tier history restored")
+	_check(loaded.network_segmentation_level == 3, "network segmentation restored")
+	_check(loaded.detection_level == 2, "detection programme restored")
+	_check(loaded.incident_response_level == 1, "incident response programme restored")
+	_check(loaded.recovery_plan_level == 3, "recovery planning restored")
+	_check(loaded.security_staff == 2 and not loaded.security_staff_on_duty, "security staffing restored")
+	_check(is_equal_approx(loaded.lifetime_security_wages, 505.0), "security wages restored")
+	_check(loaded.lifetime_threats_detected == 12, "detected threat statistic restored")
+	_check(loaded.lifetime_incidents_contained == 8, "contained incident statistic restored")
+	_check(loaded.lifetime_incidents_suffered == 4, "impact incident statistic restored")
+	_check(str(loaded.last_security_incident.get("zone", "")) == "Production", "last incident record restored")
 	_check(bool(loaded.advertising_channels.get("business_directory", false)), "advertising channel restored")
 	_check(is_equal_approx(loaded.lifetime_advertising_spend, 77.0), "advertising spend restored")
 	_check(loaded.competitor_name == "Test Power Ltd", "competitor name restored")
