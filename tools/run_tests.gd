@@ -29,6 +29,7 @@ func _init() -> void:
 	_test_cybersecurity_programs()
 	_test_corporate_management()
 	_test_research_and_challenges()
+	_test_prestige_and_global_energy()
 	_test_offline_advance_has_no_security_events()
 	_test_security_event_effects()
 	_test_bankruptcy_rescue()
@@ -876,6 +877,67 @@ func _test_bankruptcy_rescue() -> void:
 	simulation.advance(state, 1.0, false)
 	_check(state.cash < 5.0, "rescue withheld while materials remain")
 
+func _test_prestige_and_global_energy() -> void:
+	var simulation: Simulation = _make_sim()
+	var state: GameState = GameState.new()
+	state.lifetime_revenue = 100000.0
+	state.completed_long_projects = ["solid_state_prototype", "closed_loop_materials", "predictive_operations"]
+	state.research_levels = {"materials": 5, "manufacturing": 5, "markets": 0, "cybernetics": 0}
+	state.ui_theme_id = "solar"
+	_check(simulation.prestige_eligible(state), "prestige unlocks at revenue and project threshold")
+	_check(simulation.prestige_points_awarded(state) == 3, "prestige award scales with revenue and research")
+	_check(simulation.perform_prestige(state), "eligible company can prestige")
+	_check(state.prestige_level == 1 and state.legacy_points == 3, "prestige and legacy points persist through reset")
+	_check(is_equal_approx(state.cash, 25.0) and state.completed_long_projects.is_empty(), "prestige resets company progression")
+	_check(state.ui_theme_id == "solar", "prestige preserves interface preferences")
+	_check(is_equal_approx(Formulas.legacy_multiplier(state), 1.15), "legacy points provide permanent multiplier")
+
+	state.cash = 1000000.0
+	state.research_points = 10000.0
+	_check(simulation.buy_grid_upgrade(state), "grid infrastructure can be purchased after prestige")
+	_check(state.grid_level == 1 and Formulas.grid_output_per_second(state) > 0.0, "grid upgrade creates energy output")
+	var allocation_before: float = 0.0
+	_check(simulation.adjust_national_market(state, "export", 10.0), "national allocation can be adjusted")
+	for allocation: Variant in state.national_market_allocations.values():
+		allocation_before += float(allocation)
+	_check(is_equal_approx(allocation_before, 100.0), "national allocations remain normalized")
+	var cash_before_grid: float = state.cash
+	simulation.advance(state, 10.0, false)
+	_check(state.cash > cash_before_grid and state.lifetime_grid_revenue > 0.0, "grid output earns national market revenue offline")
+
+	_check(simulation.buy_recycling_upgrade(state), "recycling infrastructure can be purchased")
+	state.production_per_second = 2.0
+	state.raw_materials = 100.0
+	state.warehouse_capacity = 1000.0
+	state.cash = 100000.0
+	simulation.advance(state, 40.0, false)
+	_check(state.lifetime_recycled_materials > 0.0, "recycling recovers component kits from production")
+
+	state.global_contract_offer = {"quantity": 10.0, "value": 50.0, "duration": 20.0, "expires_in": 10.0}
+	_check(simulation.accept_global_contract(state), "large-scale contract offer can be accepted")
+	var completed_before: int = state.lifetime_global_contracts_completed
+	simulation.advance(state, 10.0, true)
+	_check(state.lifetime_global_contracts_completed == completed_before + 1, "grid output completes large-scale contract")
+	state.active_global_contract = {"quantity": 1000.0, "remaining": 1000.0, "value": 500.0, "time_remaining": 1.0}
+	var failed_before: int = state.lifetime_global_contracts_failed
+	simulation.advance(state, 2.0, true)
+	_check(state.lifetime_global_contracts_failed == failed_before + 1, "missed large-scale contract records failure")
+	state.global_contract_timer = Simulation.GLOBAL_CONTRACT_OFFER_PERIOD
+	simulation.advance(state, 0.1, true)
+	_check(not state.global_contract_offer.is_empty(), "large-scale contract offers arrive on schedule")
+
+	var old_domestic_price: float = state.national_market_prices["domestic"]
+	state.national_market_timer = Simulation.NATIONAL_MARKET_PERIOD
+	simulation._update_national_markets(state, 0.1)
+	_check(not is_equal_approx(float(state.national_market_prices["domestic"]), old_domestic_price), "national market prices drift independently")
+
+	state.global_event_timer = Simulation.GLOBAL_EVENT_PERIOD
+	var event_report: Dictionary = {"global_events": 0}
+	simulation._update_global_event(state, 0.1, event_report)
+	_check(not state.active_global_event.is_empty() and state.lifetime_global_events == 1, "global event starts on schedule")
+	var event_market: String = str((state.active_global_event.get("market_modifiers", {}) as Dictionary).keys()[0])
+	_check(not is_equal_approx(Formulas.national_market_price(state, event_market), float(state.national_market_prices[event_market])), "global event modifies its target market")
+
 func _test_save_round_trip() -> void:
 	var state: GameState = GameState.new()
 	state.cash = 123.45
@@ -949,6 +1011,15 @@ func _test_save_round_trip() -> void:
 	state.lifetime_challenges_completed = 4
 	state.lifetime_challenges_failed = 2
 	state.completed_challenge_ids = ["production_sprint", "incident_free"]
+	state.prestige_level = 2
+	state.legacy_points = 7
+	state.grid_level = 4
+	state.national_market_allocations = {"domestic": 20.0, "industrial": 30.0, "export": 50.0}
+	state.recycling_level = 3
+	state.lifetime_recycled_materials = 44.0
+	state.active_global_contract = {"quantity": 100.0, "remaining": 25.0, "value": 50.0}
+	state.lifetime_grid_revenue = 321.0
+	state.active_global_event = {"id": "heatwave", "time_remaining": 30.0, "market_modifiers": {"domestic": 1.45}}
 	state.advertising_channels["business_directory"] = true
 	state.lifetime_advertising_spend = 77.0
 	state.competitor_name = "Test Power Ltd"
@@ -1030,6 +1101,11 @@ func _test_save_round_trip() -> void:
 	_check(str(loaded.active_challenge.get("id", "")) == "revenue_drive", "active challenge restored")
 	_check(loaded.lifetime_challenges_completed == 4 and loaded.lifetime_challenges_failed == 2, "challenge totals restored")
 	_check(loaded.completed_challenge_ids.has("incident_free"), "completed challenge history restored")
+	_check(loaded.prestige_level == 2 and loaded.legacy_points == 7, "prestige state restored")
+	_check(loaded.grid_level == 4 and is_equal_approx(float(loaded.national_market_allocations["export"]), 50.0), "grid and national markets restored")
+	_check(loaded.recycling_level == 3 and is_equal_approx(loaded.lifetime_recycled_materials, 44.0), "recycling state restored")
+	_check(is_equal_approx(float(loaded.active_global_contract.get("remaining", 0.0)), 25.0), "large-scale contract restored")
+	_check(is_equal_approx(loaded.lifetime_grid_revenue, 321.0) and str(loaded.active_global_event.get("id", "")) == "heatwave", "global revenue and event restored")
 	_check(bool(loaded.advertising_channels.get("business_directory", false)), "advertising channel restored")
 	_check(is_equal_approx(loaded.lifetime_advertising_spend, 77.0), "advertising spend restored")
 	_check(loaded.competitor_name == "Test Power Ltd", "competitor name restored")

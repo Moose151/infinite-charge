@@ -44,6 +44,15 @@ Milestone Five: Research and Challenges is complete as of v0.21.
 - `tools/research_harness.gd` starts at the Milestone Five handoff and validates ten hours of autonomous progression.
 - The harness reaches four level-five branches, five level-three equipment lines, all three projects, and all four challenge completions.
 
+## First prestige layer
+
+- v0.22 closes the prestige acceptance item originally omitted from the v0.21 implementation.
+- Prestige requires at least $100,000 lifetime revenue and completion of all three long-term projects.
+- The confirmation requires two deliberate presses, resets ordinary company progression, and preserves appearance/offline settings.
+- Each prestige awards permanent Legacy Points based on lifetime revenue and research progress.
+- Every Legacy Point adds 5% to automated output, customer demand, research generation, and national-grid output.
+- The first prestige unlocks the Global Energy workspace and Milestone Six progression.
+
 ## Release validation
 
 Run:

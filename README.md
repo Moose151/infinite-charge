@@ -35,6 +35,8 @@ The project is currently focused on the first garage-stage MVP:
 - `tools/corporate_harness.gd` - two-hour corporate progression and balance validation
 - `docs/MILESTONE_FIVE_ACCEPTANCE.md` - completed Research and Challenges acceptance criteria and validation record
 - `tools/research_harness.gd` - ten-hour research, project, equipment, and challenge progression validation
+- `docs/MILESTONE_SIX_ACCEPTANCE.md` - completed Global Energy acceptance criteria and validation record
+- `tools/global_harness.gd` - four-hour grid, national market, recycling, contract, and event validation
 
 ## Next Implementation Step
 

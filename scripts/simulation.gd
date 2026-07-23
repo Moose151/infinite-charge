@@ -52,6 +52,18 @@ const CHALLENGES: Dictionary = {
 	"incident_free": {"name": "Incident-Free Window", "duration": 900.0, "metric": "incident_free", "target": 900.0, "reward_cash": 2000.0, "reward_research": 30.0},
 	"contract_streak": {"name": "Contract Delivery Streak", "duration": 1200.0, "metric": "contracts", "target": 3.0, "reward_cash": 3000.0, "reward_research": 25.0},
 }
+const GRID_INFRASTRUCTURE: Dictionary = {"base_cash": 12000.0, "cash_scale": 2.1, "base_research": 80.0, "research_scale": 1.55}
+const RECYCLING_INFRASTRUCTURE: Dictionary = {"base_cash": 8000.0, "cash_scale": 1.85, "base_research": 60.0, "research_scale": 1.45}
+const GLOBAL_CONTRACT_OFFER_PERIOD: float = 480.0
+const GLOBAL_CONTRACT_OFFER_LIFETIME: float = 120.0
+const NATIONAL_MARKET_PERIOD: float = 120.0
+const GLOBAL_EVENT_PERIOD: float = 720.0
+const GLOBAL_EVENTS: Array[Dictionary] = [
+	{"id": "heatwave", "name": "Continental Heatwave", "description": "Cooling demand lifts domestic grid prices.", "duration": 300.0, "market_modifiers": {"domestic": 1.45}},
+	{"id": "industry_subsidy", "name": "Industrial Electrification Grant", "description": "Factories are buying every spare megawatt.", "duration": 360.0, "market_modifiers": {"industrial": 1.55}},
+	{"id": "port_disruption", "name": "Port Interconnector Disruption", "description": "Export transmission is temporarily constrained.", "duration": 240.0, "market_modifiers": {"export": 0.55}},
+	{"id": "regional_shortfall", "name": "Regional Generation Shortfall", "description": "All national markets need emergency supply.", "duration": 240.0, "market_modifiers": {"domestic": 1.2, "industrial": 1.2, "export": 1.2}},
+]
 
 const CONTRACT_BUYERS: Array[String] = [
 	"the Municipal Parks Department",
@@ -115,6 +127,10 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		"research_points": 0.0,
 		"threats_detected": 0,
 		"incidents_contained": 0,
+		"recycled_materials": 0.0,
+		"grid_energy": 0.0,
+		"grid_revenue": 0.0,
+		"global_events": 0,
 	}
 
 	_pay_wages(state, delta, allow_events, report)
@@ -138,6 +154,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		state.production_downtime = maxf(0.0, state.production_downtime - delta)
 
 	_produce_automated(state, uptime, allow_events, report)
+	_update_global_energy(state, delta, allow_events, report)
 
 	if allow_events:
 		_update_contracts(state, delta, report)
@@ -185,6 +202,12 @@ func _produce_automated(state: GameState, uptime: float, allow_events: bool, rep
 	var materials_used: int = cells_made * material_per_cell
 	var energy_cost: float = cells_made * energy_per_cell
 	state.raw_materials -= materials_used
+	var recycled: float = materials_used * Formulas.recycling_rate(state) + state.recycling_progress
+	var recovered: int = floori(recycled)
+	state.recycling_progress = recycled - recovered
+	state.raw_materials += recovered
+	state.lifetime_recycled_materials += recovered
+	report["recycled_materials"] = float(report.get("recycled_materials", 0.0)) + recovered
 	if product_id == "premium":
 		state.premium_cells += cells_made
 	else:
@@ -252,17 +275,205 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		"security_events": 0,
 		"threats_detected": 0,
 		"incidents_contained": 0,
+		"recycled_materials": 0.0,
+		"grid_energy": 0.0,
+		"grid_revenue": 0.0,
+		"global_events": 0,
 	}
 	var remaining: float = total_seconds
 	while remaining > 0.0:
 		var step: float = minf(chunk_seconds, remaining)
 		remaining -= step
 		var report: Dictionary = advance(state, step, allow_events)
-		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost", "security_wages", "manager_wages", "research_points"]:
+		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost", "security_wages", "manager_wages", "research_points", "recycled_materials", "grid_energy", "grid_revenue"]:
 			aggregate[key] = float(aggregate[key]) + float(report[key])
-		for key: String in ["market_events", "security_events", "competitor_events", "threats_detected", "incidents_contained"]:
+		for key: String in ["market_events", "security_events", "competitor_events", "threats_detected", "incidents_contained", "global_events"]:
 			aggregate[key] = int(aggregate[key]) + int(report[key])
 	return aggregate
+
+func prestige_eligible(state: GameState) -> bool:
+	return state.lifetime_revenue >= 100000.0 and state.completed_long_projects.size() >= LONG_PROJECTS.size()
+
+func prestige_points_awarded(state: GameState) -> int:
+	if not prestige_eligible(state):
+		return 0
+	var research_levels: int = 0
+	for level: Variant in state.research_levels.values():
+		research_levels += int(level)
+	return maxi(1, 1 + floori(state.lifetime_revenue / 100000.0) + floori(research_levels / 10.0))
+
+func perform_prestige(state: GameState) -> bool:
+	var awarded: int = prestige_points_awarded(state)
+	if awarded <= 0:
+		return false
+	var preserved: Dictionary = {
+		"prestige_level": state.prestige_level + 1,
+		"legacy_points": state.legacy_points + awarded,
+		"lifetime_prestiges": state.lifetime_prestiges + 1,
+		"autosave_interval": state.autosave_interval,
+		"offline_limit_seconds": state.offline_limit_seconds,
+		"ui_scale": state.ui_scale,
+		"ui_theme_id": state.ui_theme_id,
+		"ui_dark_mode": state.ui_dark_mode,
+	}
+	var fresh: GameState = GameState.new()
+	var data: Dictionary = fresh.to_save_data()
+	for key: String in preserved:
+		data[key] = preserved[key]
+	state.load_save_data(data)
+	state.add_event("The company has entered the national grid era. %d Legacy Points now provide a permanent %d%% operating bonus." % [state.legacy_points, roundi((Formulas.legacy_multiplier(state) - 1.0) * 100.0)])
+	return true
+
+func grid_upgrade_costs(state: GameState) -> Dictionary:
+	return {
+		"cash": ceilf(float(GRID_INFRASTRUCTURE["base_cash"]) * pow(float(GRID_INFRASTRUCTURE["cash_scale"]), state.grid_level)),
+		"research": ceilf(float(GRID_INFRASTRUCTURE["base_research"]) * pow(float(GRID_INFRASTRUCTURE["research_scale"]), state.grid_level)),
+	}
+
+func buy_grid_upgrade(state: GameState) -> bool:
+	if state.prestige_level <= 0 or state.grid_level >= 5:
+		return false
+	var costs: Dictionary = grid_upgrade_costs(state)
+	if state.cash < float(costs["cash"]) or state.research_points < float(costs["research"]):
+		return false
+	state.cash -= float(costs["cash"])
+	state.research_points -= float(costs["research"])
+	state.grid_level += 1
+	state.add_event("Grid infrastructure advanced to level %d. Transmission planners have acquired a second ruler." % state.grid_level)
+	return true
+
+func recycling_upgrade_costs(state: GameState) -> Dictionary:
+	return {
+		"cash": ceilf(float(RECYCLING_INFRASTRUCTURE["base_cash"]) * pow(float(RECYCLING_INFRASTRUCTURE["cash_scale"]), state.recycling_level)),
+		"research": ceilf(float(RECYCLING_INFRASTRUCTURE["base_research"]) * pow(float(RECYCLING_INFRASTRUCTURE["research_scale"]), state.recycling_level)),
+	}
+
+func buy_recycling_upgrade(state: GameState) -> bool:
+	if state.prestige_level <= 0 or state.recycling_level >= 5:
+		return false
+	var costs: Dictionary = recycling_upgrade_costs(state)
+	if state.cash < float(costs["cash"]) or state.research_points < float(costs["research"]):
+		return false
+	state.cash -= float(costs["cash"])
+	state.research_points -= float(costs["research"])
+	state.recycling_level += 1
+	state.add_event("Closed-loop recycling advanced to level %d. Yesterday's offcuts are tomorrow's invoice reduction." % state.recycling_level)
+	return true
+
+func adjust_national_market(state: GameState, market_id: String, change: float) -> bool:
+	if state.prestige_level <= 0 or not state.national_market_allocations.has(market_id) or is_zero_approx(change):
+		return false
+	if change < 0.0:
+		var reduction: float = minf(-change, float(state.national_market_allocations[market_id]))
+		state.national_market_allocations[market_id] = float(state.national_market_allocations[market_id]) - reduction
+		var receivers: Array[String] = []
+		for id: String in state.national_market_allocations:
+			if id != market_id:
+				receivers.append(id)
+		for id: String in receivers:
+			state.national_market_allocations[id] = float(state.national_market_allocations[id]) + reduction / receivers.size()
+	else:
+		var available: float = 0.0
+		for id: String in state.national_market_allocations:
+			if id != market_id:
+				available += float(state.national_market_allocations[id])
+		var addition: float = minf(change, available)
+		state.national_market_allocations[market_id] = float(state.national_market_allocations[market_id]) + addition
+		for id: String in state.national_market_allocations:
+			if id != market_id and available > 0.0:
+				var share: float = float(state.national_market_allocations[id]) / available
+				state.national_market_allocations[id] = maxf(0.0, float(state.national_market_allocations[id]) - addition * share)
+	return true
+
+func accept_global_contract(state: GameState) -> bool:
+	if state.global_contract_offer.is_empty() or not state.active_global_contract.is_empty():
+		return false
+	state.active_global_contract = state.global_contract_offer.duplicate(true)
+	state.active_global_contract["remaining"] = float(state.active_global_contract.get("quantity", 0.0))
+	state.active_global_contract["time_remaining"] = float(state.active_global_contract.get("duration", 0.0))
+	state.global_contract_offer = {}
+	state.add_event("Large-scale grid contract accepted. Dispatch is now using the serious clipboard.")
+	return true
+
+func decline_global_contract(state: GameState) -> bool:
+	if state.global_contract_offer.is_empty():
+		return false
+	state.global_contract_offer = {}
+	return true
+
+func _update_global_energy(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
+	if state.prestige_level <= 0:
+		return
+	_update_national_markets(state, delta)
+	if allow_events:
+		_update_global_event(state, delta, report)
+	var energy: float = Formulas.grid_output_per_second(state) * delta
+	report["grid_energy"] = energy
+	if allow_events and not state.active_global_contract.is_empty():
+		var delivered: float = minf(energy, float(state.active_global_contract.get("remaining", 0.0)))
+		state.active_global_contract["remaining"] = float(state.active_global_contract.get("remaining", 0.0)) - delivered
+		energy -= delivered
+		if float(state.active_global_contract["remaining"]) <= 0.0001:
+			var value: float = float(state.active_global_contract.get("value", 0.0))
+			state.cash += value
+			state.lifetime_revenue += value
+			state.lifetime_global_contract_revenue += value
+			state.lifetime_global_contracts_completed += 1
+			report["revenue"] = float(report["revenue"]) + value
+			report["grid_revenue"] = float(report["grid_revenue"]) + value
+			state.active_global_contract = {}
+			state.add_event("Large-scale contract delivered for $%s." % Formulas.format_number(value))
+		elif allow_events:
+			state.active_global_contract["time_remaining"] = float(state.active_global_contract.get("time_remaining", 0.0)) - delta
+			if float(state.active_global_contract["time_remaining"]) <= 0.0:
+				state.lifetime_global_contracts_failed += 1
+				state.active_global_contract = {}
+				state.add_event("Large-scale grid contract missed its dispatch window.")
+	var spot_revenue: float = energy * Formulas.weighted_grid_price(state)
+	state.cash += spot_revenue
+	state.lifetime_revenue += spot_revenue
+	state.lifetime_grid_revenue += spot_revenue
+	report["revenue"] = float(report["revenue"]) + spot_revenue
+	report["grid_revenue"] = float(report["grid_revenue"]) + spot_revenue
+	if not allow_events or state.grid_level <= 0:
+		return
+	if not state.global_contract_offer.is_empty():
+		state.global_contract_offer["expires_in"] = float(state.global_contract_offer.get("expires_in", 0.0)) - delta
+		if float(state.global_contract_offer["expires_in"]) <= 0.0:
+			state.global_contract_offer = {}
+	if state.global_contract_offer.is_empty() and state.active_global_contract.is_empty():
+		state.global_contract_timer += delta
+		if state.global_contract_timer >= GLOBAL_CONTRACT_OFFER_PERIOD:
+			state.global_contract_timer = 0.0
+			var rate: float = Formulas.grid_output_per_second(state)
+			var quantity: float = ceilf(rate * rng.randf_range(180.0, 360.0))
+			var price: float = snappedf(Formulas.weighted_grid_price(state) * rng.randf_range(1.25, 1.6), 0.01)
+			var duration: float = ceilf(quantity / maxf(rate, 0.01) * 1.35)
+			state.global_contract_offer = {"buyer": "National Grid Dispatch", "quantity": quantity, "value": quantity * price, "price_per_unit": price, "duration": duration, "expires_in": GLOBAL_CONTRACT_OFFER_LIFETIME}
+
+func _update_national_markets(state: GameState, delta: float) -> void:
+	state.national_market_timer += delta
+	while state.national_market_timer >= NATIONAL_MARKET_PERIOD:
+		state.national_market_timer -= NATIONAL_MARKET_PERIOD
+		for market_id: String in state.national_market_prices:
+			state.national_market_prices[market_id] = clampf(float(state.national_market_prices[market_id]) * rng.randf_range(0.88, 1.14), 0.05, 0.45)
+
+func _update_global_event(state: GameState, delta: float, report: Dictionary) -> void:
+	if not state.active_global_event.is_empty():
+		state.active_global_event["time_remaining"] = float(state.active_global_event.get("time_remaining", 0.0)) - delta
+		if float(state.active_global_event["time_remaining"]) <= 0.0:
+			state.add_event("%s has ended. Dispatch resumes its usual level of concern." % str(state.active_global_event.get("name", "Global event")))
+			state.active_global_event = {}
+			state.global_event_timer = 0.0
+		return
+	state.global_event_timer += delta
+	if state.active_global_event.is_empty() and state.global_event_timer >= GLOBAL_EVENT_PERIOD:
+		state.global_event_timer = 0.0
+		state.active_global_event = GLOBAL_EVENTS[rng.randi_range(0, GLOBAL_EVENTS.size() - 1)].duplicate(true)
+		state.active_global_event["time_remaining"] = float(state.active_global_event["duration"])
+		state.lifetime_global_events += 1
+		report["global_events"] = int(report["global_events"]) + 1
+		state.add_event("GLOBAL EVENT: %s — %s" % [str(state.active_global_event["name"]), str(state.active_global_event["description"])])
 
 func manual_produce(state: GameState) -> bool:
 	var cells_in_batch: int = maxi(1, roundi(state.manual_output))

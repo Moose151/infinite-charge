@@ -110,6 +110,27 @@ var lifetime_challenges_completed: int = 0
 var lifetime_challenges_failed: int = 0
 var completed_challenge_ids: Array[String] = []
 
+var prestige_level: int = 0
+var legacy_points: int = 0
+var lifetime_prestiges: int = 0
+var grid_level: int = 0
+var national_market_allocations: Dictionary = {"domestic": 50.0, "industrial": 30.0, "export": 20.0}
+var national_market_prices: Dictionary = {"domestic": 0.12, "industrial": 0.16, "export": 0.20}
+var national_market_timer: float = 0.0
+var recycling_level: int = 0
+var recycling_progress: float = 0.0
+var lifetime_recycled_materials: float = 0.0
+var global_contract_offer: Dictionary = {}
+var active_global_contract: Dictionary = {}
+var global_contract_timer: float = 0.0
+var lifetime_global_contracts_completed: int = 0
+var lifetime_global_contracts_failed: int = 0
+var lifetime_global_contract_revenue: float = 0.0
+var lifetime_grid_revenue: float = 0.0
+var global_event_timer: float = 0.0
+var active_global_event: Dictionary = {}
+var lifetime_global_events: int = 0
+
 var demand_per_second: float = 0.0
 var sales_per_second: float = 0.0
 var lifetime_cells_made: float = 0.0
@@ -236,6 +257,26 @@ func to_save_data() -> Dictionary:
 		"lifetime_challenges_completed": lifetime_challenges_completed,
 		"lifetime_challenges_failed": lifetime_challenges_failed,
 		"completed_challenge_ids": completed_challenge_ids,
+		"prestige_level": prestige_level,
+		"legacy_points": legacy_points,
+		"lifetime_prestiges": lifetime_prestiges,
+		"grid_level": grid_level,
+		"national_market_allocations": national_market_allocations,
+		"national_market_prices": national_market_prices,
+		"national_market_timer": national_market_timer,
+		"recycling_level": recycling_level,
+		"recycling_progress": recycling_progress,
+		"lifetime_recycled_materials": lifetime_recycled_materials,
+		"global_contract_offer": global_contract_offer,
+		"active_global_contract": active_global_contract,
+		"global_contract_timer": global_contract_timer,
+		"lifetime_global_contracts_completed": lifetime_global_contracts_completed,
+		"lifetime_global_contracts_failed": lifetime_global_contracts_failed,
+		"lifetime_global_contract_revenue": lifetime_global_contract_revenue,
+		"lifetime_grid_revenue": lifetime_grid_revenue,
+		"global_event_timer": global_event_timer,
+		"active_global_event": active_global_event,
+		"lifetime_global_events": lifetime_global_events,
 		"demand_per_second": demand_per_second,
 		"sales_per_second": sales_per_second,
 		"lifetime_cells_made": lifetime_cells_made,
@@ -388,6 +429,37 @@ func load_save_data(data: Dictionary) -> void:
 	completed_challenge_ids.clear()
 	for challenge_id: Variant in data.get("completed_challenge_ids", []):
 		completed_challenge_ids.append(str(challenge_id))
+	prestige_level = maxi(0, int(data.get("prestige_level", prestige_level)))
+	legacy_points = maxi(0, int(data.get("legacy_points", legacy_points)))
+	lifetime_prestiges = maxi(0, int(data.get("lifetime_prestiges", lifetime_prestiges)))
+	grid_level = clampi(int(data.get("grid_level", grid_level)), 0, 5)
+	var loaded_allocations: Dictionary = data.get("national_market_allocations", {})
+	var loaded_prices: Dictionary = data.get("national_market_prices", {})
+	for market_id: String in national_market_allocations:
+		national_market_allocations[market_id] = maxf(0.0, float(loaded_allocations.get(market_id, national_market_allocations[market_id])))
+		national_market_prices[market_id] = maxf(0.01, float(loaded_prices.get(market_id, national_market_prices[market_id])))
+	var allocation_total: float = 0.0
+	for market_id: String in national_market_allocations:
+		allocation_total += float(national_market_allocations[market_id])
+	if allocation_total <= 0.0:
+		national_market_allocations = {"domestic": 50.0, "industrial": 30.0, "export": 20.0}
+	else:
+		for market_id: String in national_market_allocations:
+			national_market_allocations[market_id] = float(national_market_allocations[market_id]) / allocation_total * 100.0
+	national_market_timer = float(data.get("national_market_timer", national_market_timer))
+	recycling_level = clampi(int(data.get("recycling_level", recycling_level)), 0, 5)
+	recycling_progress = clampf(float(data.get("recycling_progress", recycling_progress)), 0.0, 0.999999)
+	lifetime_recycled_materials = float(data.get("lifetime_recycled_materials", lifetime_recycled_materials))
+	global_contract_offer = data.get("global_contract_offer", {})
+	active_global_contract = data.get("active_global_contract", {})
+	global_contract_timer = float(data.get("global_contract_timer", global_contract_timer))
+	lifetime_global_contracts_completed = int(data.get("lifetime_global_contracts_completed", lifetime_global_contracts_completed))
+	lifetime_global_contracts_failed = int(data.get("lifetime_global_contracts_failed", lifetime_global_contracts_failed))
+	lifetime_global_contract_revenue = float(data.get("lifetime_global_contract_revenue", lifetime_global_contract_revenue))
+	lifetime_grid_revenue = float(data.get("lifetime_grid_revenue", lifetime_grid_revenue))
+	global_event_timer = float(data.get("global_event_timer", global_event_timer))
+	active_global_event = data.get("active_global_event", {})
+	lifetime_global_events = int(data.get("lifetime_global_events", lifetime_global_events))
 	demand_per_second = float(data.get("demand_per_second", demand_per_second))
 	sales_per_second = float(data.get("sales_per_second", sales_per_second))
 	lifetime_cells_made = float(data.get("lifetime_cells_made", lifetime_cells_made))

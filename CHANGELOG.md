@@ -4,6 +4,18 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.22 — 2026-07-23
+
+Milestone Six: Global Energy complete.
+
+- Completed the first prestige layer omitted from v0.21: a guarded company reset unlocks Global Energy and awards permanent Legacy Points based on revenue and research.
+- Added five levels of grid infrastructure, scaling national energy output, cash/research investment, and persistent lifetime grid revenue.
+- Added Domestic, Industrial, and Export national markets with player-controlled allocations, drifting prices, global-event modifiers, and normalized 100% dispatch.
+- Added five levels of closed-loop recycling, recovering up to 25% of component kits consumed by automated production.
+- Added large-scale grid contracts with timed offers, delivery allocation, deadlines, completion/failure tracking, and contract revenue.
+- Added timed global events that temporarily alter one or more national market prices while online.
+- Added a dedicated Global workspace, complete persistence, offline grid earnings, 378-check headless coverage, and a four-hour global-energy acceptance harness.
+
 ## 0.21 — 2026-07-23
 
 Milestone Five: Research and Challenges complete.

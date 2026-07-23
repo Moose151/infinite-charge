@@ -6,7 +6,7 @@ Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-
 
 The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 5, clicking becomes optional as automation scales, and most upgrades max out within the hour. The optimal sale price shifts from ~$4 early (demand-limited) toward $6 late (supply-limited), so the pricing decision stays live throughout the session.
 
-Milestones One through Five are complete. v0.21 adds Research and Challenges: four research branches, five equipment lines, three offline-capable long-term projects, and four opt-in timed challenges. The dedicated research harness validates the entire layer from a mature corporate handoff.
+Milestones One through Six are complete. v0.22 closes the first-prestige requirement and adds Global Energy: permanent Legacy Points, grid infrastructure, three national markets, closed-loop recycling, large-scale contracts, and timed global events. The dedicated global harness validates the entire layer from a post-prestige handoff.
 
 The project has been pushed to GitHub:
 
@@ -60,6 +60,8 @@ Avoid starting factories, staff, research trees, contracts, prestige, network ma
 - `tools/corporate_harness.gd` validates two hours of corporate expansion from the Milestone Four handoff.
 - `docs/MILESTONE_FIVE_ACCEPTANCE.md` records the acceptance criteria and evidence for the completed Research and Challenges milestone.
 - `tools/research_harness.gd` validates ten hours of research progression from the Milestone Five handoff.
+- `docs/MILESTONE_SIX_ACCEPTANCE.md` records the acceptance criteria and evidence for the completed Global Energy milestone.
+- `tools/global_harness.gd` validates four hours of grid, recycling, national contracts, markets, and events from the post-prestige handoff.
 
 Keep simulation behavior out of UI code whenever possible. Future offline progress, tests, automation, and balance tools all depend on `Simulation.advance()` staying independent from the interface.
 
@@ -94,8 +96,8 @@ The player can:
 
 ## Recommended Next Steps
 
-1. Human-playtest the full Milestones Two–Five progression and the timing of the garage, security, corporate, and research handoffs.
-2. Tune research generation, branch/equipment costs, project durations, and challenge targets from human feedback.
+1. Human-playtest the full Milestones Two–Six progression and the timing of the prestige/global-energy handoff.
+2. Tune grid and recycling costs, contract cadence, national prices, and global-event duration from human feedback.
 3. Review whether milestone tabs should unlock progressively to reduce first-screen complexity for new saves.
 4. Review the detailed-statistics presentation and decide whether graphs materially improve decisions over the current trend summary.
 

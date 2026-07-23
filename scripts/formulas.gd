@@ -73,7 +73,7 @@ static func customer_segment_demand(state: GameState, product_id: String = "stan
 		var price_factor: float = pow(price_ratio, -float(definition["price_sensitivity"]))
 		var quality_factor: float = pow(clampf(quality, 0.25, 4.0), float(definition["quality_sensitivity"]))
 		var sales_factor: float = 1.0 + department_effective_level(state, "sales") * 0.05 + int(state.research_levels.get("markets", 0)) * 0.03 + int(state.equipment_levels.get("market_analytics", 0)) * 0.04
-		var demand: float = maxf(0.0, 0.7 * state.awareness * sales_factor * (1.0 + channel_boost) * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty) * competitor_factor)
+		var demand: float = maxf(0.0, 0.7 * state.awareness * sales_factor * legacy_multiplier(state) * (1.0 + channel_boost) * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty) * competitor_factor)
 		results.append({
 			"id": definition["id"],
 			"name": definition["name"],
@@ -146,7 +146,7 @@ static func corporate_factory_throughput(state: GameState) -> float:
 static func automated_throughput(state: GameState) -> float:
 	var equipment_output: float = int(state.equipment_levels.get("precision_assembler", 0)) * 0.35
 	var research_multiplier: float = 1.0 + int(state.research_levels.get("manufacturing", 0)) * 0.04
-	return (garage_throughput(state) + corporate_factory_throughput(state) + equipment_output) * research_multiplier
+	return (garage_throughput(state) + corporate_factory_throughput(state) + equipment_output) * research_multiplier * legacy_multiplier(state)
 
 static func testing_coverage(state: GameState) -> float:
 	var throughput: float = garage_throughput(state)
@@ -262,7 +262,31 @@ static func research_points_per_second(state: GameState) -> float:
 		for department_id: String in state.managers:
 			if bool(state.managers[department_id]):
 				manager_rate += 0.002
-	return 0.008 + factory_rate + department_rate + manager_rate
+	return (0.008 + factory_rate + department_rate + manager_rate) * legacy_multiplier(state)
+
+static func legacy_multiplier(state: GameState) -> float:
+	return 1.0 + maxf(0.0, state.legacy_points) * 0.05
+
+static func grid_output_per_second(state: GameState) -> float:
+	if state.prestige_level <= 0:
+		return 0.0
+	return state.grid_level * 2.0 * legacy_multiplier(state)
+
+static func recycling_rate(state: GameState) -> float:
+	return clampf(state.recycling_level * 0.05, 0.0, 0.25)
+
+static func national_market_price(state: GameState, market_id: String) -> float:
+	var modifier: float = 1.0
+	if not state.active_global_event.is_empty():
+		var modifiers: Dictionary = state.active_global_event.get("market_modifiers", {})
+		modifier = float(modifiers.get(market_id, 1.0))
+	return maxf(0.01, float(state.national_market_prices.get(market_id, 0.1)) * modifier)
+
+static func weighted_grid_price(state: GameState) -> float:
+	var result: float = 0.0
+	for market_id: String in state.national_market_allocations:
+		result += national_market_price(state, market_id) * float(state.national_market_allocations[market_id]) / 100.0
+	return result
 
 static func product_material_cost(product_id: String) -> float:
 	return 2.0 if product_id == "premium" else 1.0

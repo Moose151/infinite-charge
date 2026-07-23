@@ -91,6 +91,17 @@ var long_project_label: Label
 var long_project_buttons: Dictionary = {}
 var challenge_label: Label
 var challenge_buttons: Dictionary = {}
+var prestige_label: Label
+var prestige_button: Button
+var prestige_armed: bool = false
+var global_summary_label: Label
+var grid_button: Button
+var recycling_button: Button
+var national_market_labels: Dictionary = {}
+var global_contract_label: Label
+var accept_global_contract_button: Button
+var decline_global_contract_button: Button
+var global_event_label: Label
 
 const UI_SCALES: Array[float] = [1.0]
 const THEME_IDS: Array[String] = ["workshop", "corporate", "solar"]
@@ -208,6 +219,9 @@ func _build_ui() -> void:
 	var research_panel: PanelContainer = _make_panel("RESEARCH  ·  Branches, equipment, projects and challenges")
 	research_panel.name = "Research"
 	tabs.add_child(research_panel)
+	var global_panel: PanelContainer = _make_panel("GLOBAL ENERGY  ·  Grid infrastructure, national markets and dispatch")
+	global_panel.name = "Global"
+	tabs.add_child(global_panel)
 	var security_panel: PanelContainer = _make_panel("SECURITY  ·  Map, detect, contain and recover")
 	security_panel.name = "Security"
 	tabs.add_child(security_panel)
@@ -225,6 +239,7 @@ func _build_ui() -> void:
 	var company: VBoxContainer = company_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var corporate: VBoxContainer = corporate_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var research: VBoxContainer = research_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var global: VBoxContainer = global_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var security: VBoxContainer = security_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var office: VBoxContainer = office_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var activity: VBoxContainer = activity_panel.get_node("Margin/Scroll/Content") as VBoxContainer
@@ -497,6 +512,56 @@ func _build_ui() -> void:
 		challenge_button.pressed.connect(func() -> void: simulation.start_challenge(state, challenge_id))
 		challenge_grid.add_child(challenge_button)
 		challenge_buttons[challenge_id] = challenge_button
+
+	var prestige_card: VBoxContainer = _make_card(research, "Legacy & Prestige")
+	prestige_label = _add_label(prestige_card)
+	prestige_button = Button.new()
+	prestige_button.pressed.connect(_on_prestige_pressed)
+	prestige_card.add_child(prestige_button)
+
+	var global_summary_card: VBoxContainer = _make_card(global, "National Grid")
+	global_summary_label = _add_label(global_summary_card)
+	grid_button = Button.new()
+	grid_button.pressed.connect(func() -> void: simulation.buy_grid_upgrade(state))
+	global_summary_card.add_child(grid_button)
+
+	var markets_card: VBoxContainer = _make_card(global, "National Markets")
+	for market_id: String in ["domestic", "industrial", "export"]:
+		var row: HBoxContainer = HBoxContainer.new()
+		markets_card.add_child(row)
+		var label: Label = Label.new()
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+		national_market_labels[market_id] = label
+		var minus: Button = Button.new()
+		minus.text = "−10%"
+		minus.pressed.connect(func() -> void: simulation.adjust_national_market(state, market_id, -10.0))
+		row.add_child(minus)
+		var plus: Button = Button.new()
+		plus.text = "+10%"
+		plus.pressed.connect(func() -> void: simulation.adjust_national_market(state, market_id, 10.0))
+		row.add_child(plus)
+
+	var recycling_card: VBoxContainer = _make_card(global, "Closed-Loop Recycling")
+	recycling_button = Button.new()
+	recycling_button.pressed.connect(func() -> void: simulation.buy_recycling_upgrade(state))
+	recycling_card.add_child(recycling_button)
+
+	var dispatch_card: VBoxContainer = _make_card(global, "Large-Scale Contracts")
+	global_contract_label = _add_label(dispatch_card)
+	var dispatch_buttons: HBoxContainer = HBoxContainer.new()
+	dispatch_card.add_child(dispatch_buttons)
+	accept_global_contract_button = Button.new()
+	accept_global_contract_button.text = "Accept"
+	accept_global_contract_button.pressed.connect(func() -> void: simulation.accept_global_contract(state))
+	dispatch_buttons.add_child(accept_global_contract_button)
+	decline_global_contract_button = Button.new()
+	decline_global_contract_button.text = "Decline"
+	decline_global_contract_button.pressed.connect(func() -> void: simulation.decline_global_contract(state))
+	dispatch_buttons.add_child(decline_global_contract_button)
+
+	var event_card: VBoxContainer = _make_card(global, "Global Events")
+	global_event_label = _add_label(event_card)
 
 	var contracts_card: VBoxContainer = _make_card(company, "Contracts")
 	reputation_label = _add_label(contracts_card)
@@ -1169,6 +1234,7 @@ func _refresh_ui() -> void:
 	_update_cybersecurity_section()
 	_update_corporate_section()
 	_update_research_section()
+	_update_global_section()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
 	var margin_status: String = "PROFITABLE" if estimated_margin > 0.0 else "LOSS-MAKING"
@@ -1798,6 +1864,82 @@ func _update_research_section() -> void:
 			Formulas.format_number(float(challenge["reward_cash"])), Formulas.format_number(float(challenge["reward_research"]))
 		]
 		button.disabled = not state.active_challenge.is_empty()
+
+func _on_prestige_pressed() -> void:
+	if not simulation.prestige_eligible(state):
+		return
+	if not prestige_armed:
+		prestige_armed = true
+		state.add_event("Prestige armed. Press again to reset the company and enter the national grid era.")
+		return
+	prestige_armed = false
+	if simulation.perform_prestige(state):
+		SaveManager.save_game(state)
+
+func _update_global_section() -> void:
+	var eligible: bool = simulation.prestige_eligible(state)
+	var award: int = simulation.prestige_points_awarded(state)
+	prestige_label.text = "Prestige %d · %d Legacy Points · permanent %d%% output, demand and research\nRequires $100k lifetime revenue and all long-term projects. Current award: %d LP." % [
+		state.prestige_level, state.legacy_points, roundi((Formulas.legacy_multiplier(state) - 1.0) * 100.0), award
+	]
+	prestige_button.text = "CONFIRM PRESTIGE — RESET COMPANY" if prestige_armed else ("Enter Global Energy · +%d LP" % award if eligible else "Prestige requirements incomplete")
+	prestige_button.disabled = not eligible
+
+	var unlocked: bool = state.prestige_level > 0
+	global_summary_label.text = ("GLOBAL ENERGY LOCKED\nComplete the first prestige to connect to national markets." if not unlocked else
+		"Grid L%d/5 · %s energy/s · weighted price $%s · lifetime grid revenue $%s" % [
+			state.grid_level, Formulas.format_number(Formulas.grid_output_per_second(state)),
+			Formulas.format_number(Formulas.weighted_grid_price(state)), Formulas.format_number(state.lifetime_grid_revenue)
+		])
+	if state.grid_level >= 5:
+		grid_button.text = "Grid infrastructure complete"
+		grid_button.disabled = true
+	else:
+		var grid_costs: Dictionary = simulation.grid_upgrade_costs(state)
+		grid_button.text = "Expand Grid · $%s + %s RP" % [Formulas.format_number(float(grid_costs["cash"])), Formulas.format_number(float(grid_costs["research"]))]
+		grid_button.disabled = not unlocked or state.cash < float(grid_costs["cash"]) or state.research_points < float(grid_costs["research"])
+
+	for market_id: String in national_market_labels:
+		var label: Label = national_market_labels[market_id] as Label
+		label.text = "%s · %d%% allocation · $%s/unit" % [
+			market_id.capitalize(), roundi(float(state.national_market_allocations[market_id])),
+			Formulas.format_number(Formulas.national_market_price(state, market_id))
+		]
+	if state.recycling_level >= 5:
+		recycling_button.text = "Recycling complete · 25% recovery"
+		recycling_button.disabled = true
+	else:
+		var recycling_costs: Dictionary = simulation.recycling_upgrade_costs(state)
+		recycling_button.text = "Recycling L%d/5 · %d%% recovery · $%s + %s RP" % [
+			state.recycling_level, roundi(Formulas.recycling_rate(state) * 100.0),
+			Formulas.format_number(float(recycling_costs["cash"])), Formulas.format_number(float(recycling_costs["research"]))
+		]
+		recycling_button.disabled = not unlocked or state.cash < float(recycling_costs["cash"]) or state.research_points < float(recycling_costs["research"])
+
+	if not state.active_global_contract.is_empty():
+		global_contract_label.text = "ACTIVE · %s units remaining · %s left · value $%s\nCompleted %d · failed %d" % [
+			Formulas.format_number(float(state.active_global_contract.get("remaining", 0.0))),
+			_format_duration(float(state.active_global_contract.get("time_remaining", 0.0))),
+			Formulas.format_number(float(state.active_global_contract.get("value", 0.0))),
+			state.lifetime_global_contracts_completed, state.lifetime_global_contracts_failed
+		]
+	elif not state.global_contract_offer.is_empty():
+		global_contract_label.text = "OFFER · %s units · $%s · expires %s" % [
+			Formulas.format_number(float(state.global_contract_offer.get("quantity", 0.0))),
+			Formulas.format_number(float(state.global_contract_offer.get("value", 0.0))),
+			_format_duration(float(state.global_contract_offer.get("expires_in", 0.0)))
+		]
+	else:
+		global_contract_label.text = "No dispatch offer · completed %d · failed %d · revenue $%s" % [
+			state.lifetime_global_contracts_completed, state.lifetime_global_contracts_failed,
+			Formulas.format_number(state.lifetime_global_contract_revenue)
+		]
+	accept_global_contract_button.disabled = state.global_contract_offer.is_empty() or not state.active_global_contract.is_empty()
+	decline_global_contract_button.disabled = state.global_contract_offer.is_empty()
+	global_event_label.text = ("No active event · %d experienced" % state.lifetime_global_events if state.active_global_event.is_empty() else
+		"%s · %s remaining\n%s" % [str(state.active_global_event.get("name", "Global event")),
+		_format_duration(float(state.active_global_event.get("time_remaining", 0.0))),
+		str(state.active_global_event.get("description", ""))])
 
 func _set_security_node(id: String, text: String) -> void:
 	var label: Label = network_asset_labels.get(id) as Label
