@@ -69,6 +69,19 @@ var security_staff_label: Label
 var hire_security_button: Button
 var fire_security_button: Button
 var security_incident_label: Label
+var factories_label: Label
+var buy_factory_button: Button
+var factory_labels: Array[Label] = []
+var factory_upgrade_buttons: Array[Button] = []
+var department_labels: Dictionary = {}
+var department_invest_buttons: Dictionary = {}
+var department_manager_buttons: Dictionary = {}
+var automation_rule_buttons: Dictionary = {}
+var automation_target_spin: SpinBox
+var automation_reserve_spin: SpinBox
+var supply_contract_label: Label
+var supply_contract_buttons: Dictionary = {}
+var detailed_stats_label: Label
 
 const UI_SCALES: Array[float] = [1.0]
 const THEME_IDS: Array[String] = ["workshop", "corporate", "solar"]
@@ -180,6 +193,9 @@ func _build_ui() -> void:
 	var company_panel: PanelContainer = _make_panel("COMPANY  ·  People, contracts and growth")
 	company_panel.name = "Company"
 	tabs.add_child(company_panel)
+	var corporate_panel: PanelContainer = _make_panel("CORPORATE  ·  Factories, departments and delegation")
+	corporate_panel.name = "Corporate"
+	tabs.add_child(corporate_panel)
 	var security_panel: PanelContainer = _make_panel("SECURITY  ·  Map, detect, contain and recover")
 	security_panel.name = "Security"
 	tabs.add_child(security_panel)
@@ -195,6 +211,7 @@ func _build_ui() -> void:
 	var operations: VBoxContainer = operations_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var market: VBoxContainer = market_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var company: VBoxContainer = company_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var corporate: VBoxContainer = corporate_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var security: VBoxContainer = security_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var office: VBoxContainer = office_panel.get_node("Margin/Scroll/Content") as VBoxContainer
 	var activity: VBoxContainer = activity_panel.get_node("Margin/Scroll/Content") as VBoxContainer
@@ -362,6 +379,80 @@ func _build_ui() -> void:
 
 	var incident_card: VBoxContainer = _make_card(security, "Incident Desk")
 	security_incident_label = _add_label(incident_card)
+
+	var factories_card: VBoxContainer = _make_card(corporate, "Factory Portfolio")
+	factories_label = _add_label(factories_card)
+	for factory_index: int in range(Simulation.FACTORY_NAMES.size()):
+		var factory_row: HBoxContainer = HBoxContainer.new()
+		factory_row.add_theme_constant_override("separation", 8)
+		factories_card.add_child(factory_row)
+		var factory_label: Label = Label.new()
+		factory_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		factory_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		factory_row.add_child(factory_label)
+		factory_labels.append(factory_label)
+		var factory_button: Button = Button.new()
+		factory_button.pressed.connect(func() -> void: simulation.upgrade_factory(state, factory_index))
+		factory_row.add_child(factory_button)
+		factory_upgrade_buttons.append(factory_button)
+	buy_factory_button = Button.new()
+	buy_factory_button.pressed.connect(func() -> void: simulation.buy_factory(state))
+	factories_card.add_child(buy_factory_button)
+
+	var departments_card: VBoxContainer = _make_card(corporate, "Departments & Managers")
+	for department_id: String in ["operations", "procurement", "sales", "security"]:
+		_add_department_row(departments_card, department_id)
+
+	var rules_card: VBoxContainer = _make_card(corporate, "Automation Rules")
+	for rule: Dictionary in [
+		{"id": "material_reorder", "name": "Procurement: reorder component kits"},
+		{"id": "preventive_service", "name": "Operations: service machines at 72%"},
+		{"id": "campaign_guardrail", "name": "Sales: pause campaigns at cash reserve"},
+		{"id": "contract_review", "name": "Sales: accept feasible profitable contracts"},
+	]:
+		var rule_id: String = str(rule["id"])
+		var toggle: CheckButton = CheckButton.new()
+		toggle.text = str(rule["name"])
+		toggle.toggled.connect(func(enabled: bool) -> void: _on_automation_rule_toggled(enabled, rule_id))
+		rules_card.add_child(toggle)
+		automation_rule_buttons[rule_id] = toggle
+	var target_row: HBoxContainer = HBoxContainer.new()
+	target_row.add_theme_constant_override("separation", 8)
+	rules_card.add_child(target_row)
+	var target_label: Label = Label.new()
+	target_label.text = "Kit target"
+	target_row.add_child(target_label)
+	automation_target_spin = SpinBox.new()
+	automation_target_spin.min_value = 10
+	automation_target_spin.max_value = 1000
+	automation_target_spin.step = 10
+	automation_target_spin.value_changed.connect(_on_automation_target_changed)
+	target_row.add_child(automation_target_spin)
+	var reserve_label: Label = Label.new()
+	reserve_label.text = "Cash reserve"
+	target_row.add_child(reserve_label)
+	automation_reserve_spin = SpinBox.new()
+	automation_reserve_spin.min_value = 0
+	automation_reserve_spin.max_value = 10000
+	automation_reserve_spin.step = 25
+	automation_reserve_spin.prefix = "$"
+	automation_reserve_spin.value_changed.connect(_on_automation_reserve_changed)
+	target_row.add_child(automation_reserve_spin)
+
+	var supply_card: VBoxContainer = _make_card(corporate, "Supply Contracts")
+	supply_contract_label = _add_label(supply_card)
+	var supply_buttons_row: HBoxContainer = HBoxContainer.new()
+	supply_buttons_row.add_theme_constant_override("separation", 8)
+	supply_card.add_child(supply_buttons_row)
+	for plan_id: String in ["local", "bulk"]:
+		var supply_button: Button = Button.new()
+		supply_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		supply_button.pressed.connect(func() -> void: simulation.sign_supply_contract(state, plan_id))
+		supply_buttons_row.add_child(supply_button)
+		supply_contract_buttons[plan_id] = supply_button
+
+	var detailed_stats_card: VBoxContainer = _make_card(corporate, "Detailed Statistics")
+	detailed_stats_label = _add_label(detailed_stats_card)
 
 	var contracts_card: VBoxContainer = _make_card(company, "Contracts")
 	reputation_label = _add_label(contracts_card)
@@ -750,6 +841,24 @@ func _add_cyber_program_row(parent: Control, id: String, title: String) -> void:
 	row.add_child(button)
 	cyber_program_buttons[id] = button
 
+func _add_department_row(parent: Control, department_id: String) -> void:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	var label: Label = Label.new()
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(label)
+	department_labels[department_id] = label
+	var invest_button: Button = Button.new()
+	invest_button.pressed.connect(func() -> void: simulation.invest_department(state, department_id))
+	row.add_child(invest_button)
+	department_invest_buttons[department_id] = invest_button
+	var manager_button: Button = Button.new()
+	manager_button.pressed.connect(func() -> void: _on_manager_pressed(department_id))
+	row.add_child(manager_button)
+	department_manager_buttons[department_id] = manager_button
+
 func _on_price_changed(value: float) -> void:
 	state.sale_price = value
 	state.demand_per_second = Formulas.demand_per_second(state)
@@ -764,6 +873,26 @@ func _on_upgrade_pressed(definition: Dictionary) -> void:
 
 func _on_advertising_toggled(enabled: bool, channel_id: String) -> void:
 	simulation.set_advertising_channel(state, channel_id, enabled)
+
+func _on_automation_rule_toggled(enabled: bool, rule_id: String) -> void:
+	if not simulation.set_automation_rule(state, rule_id, enabled):
+		var toggle: CheckButton = automation_rule_buttons.get(rule_id) as CheckButton
+		if toggle != null:
+			toggle.set_pressed_no_signal(bool(state.automation_rules.get(rule_id, false)))
+
+func _on_automation_target_changed(value: float) -> void:
+	state.automation_material_target = roundi(value)
+	state.notify_changed()
+
+func _on_automation_reserve_changed(value: float) -> void:
+	state.automation_cash_reserve = value
+	state.notify_changed()
+
+func _on_manager_pressed(department_id: String) -> void:
+	if bool(state.managers.get(department_id, false)):
+		simulation.fire_manager(state, department_id)
+	else:
+		simulation.hire_manager(state, department_id)
 
 func _on_pause_toggled(toggled_on: bool) -> void:
 	state.simulation_paused = toggled_on
@@ -872,10 +1001,10 @@ func _refresh_ui() -> void:
 		Formulas.format_number(state.battery_cells),
 		Formulas.format_number(state.battery_cells * state.sale_price),
 		Formulas.format_number(state.battery_cells + state.premium_cells),
-		Formulas.format_number(state.warehouse_capacity),
+		Formulas.format_number(Formulas.effective_warehouse_capacity(state)),
 		stock_flow_note
 	]
-	inventory_bar.max_value = maxf(1.0, state.warehouse_capacity)
+	inventory_bar.max_value = maxf(1.0, Formulas.effective_warehouse_capacity(state))
 	inventory_bar.value = clampf(state.battery_cells + state.premium_cells, 0.0, inventory_bar.max_value)
 	var material_runway: float = Formulas.material_runway_seconds(state)
 	var material_runway_text: String = "no automated draw" if not is_finite(material_runway) else "~%s at current output" % _format_duration(material_runway)
@@ -892,7 +1021,7 @@ func _refresh_ui() -> void:
 	risk_bar.max_value = 100.0
 	risk_bar.value = Formulas.effective_risk(state) * 100.0
 	var spot_revenue: float = state.lifetime_revenue - state.lifetime_contract_revenue
-	stats_label.text = "OUTPUT\nMade: %s cells | Sold: %s cells | Unfilled orders: %s\n\nINCOME\nSpot sales: $%s | Contracts: $%s | Total: $%s\n\nSPENDING\nComponent kits: $%s | Energy: $%s | Production wages: $%s\nSecurity wages: $%s | Upgrades: $%s | Hiring: $%s | Maintenance: $%s\nAdvertising: $%s | Security losses: $%s\n\nTime operated: %s" % [
+	stats_label.text = "OUTPUT\nMade: %s cells | Sold: %s cells | Unfilled orders: %s\n\nINCOME\nSpot sales: $%s | Contracts: $%s | Total: $%s\n\nSPENDING\nComponent kits: $%s | Energy: $%s | Production wages: $%s\nSecurity wages: $%s | Manager wages: $%s | Upgrades: $%s\nCorporate investment: $%s | Hiring: $%s | Maintenance: $%s\nAdvertising: $%s | Security losses: $%s\n\nTime operated: %s" % [
 		Formulas.format_number(state.lifetime_cells_made),
 		Formulas.format_number(state.lifetime_cells_sold),
 		Formulas.format_number(state.lifetime_sales_lost),
@@ -903,7 +1032,9 @@ func _refresh_ui() -> void:
 		Formulas.format_number(state.lifetime_energy_cost),
 		Formulas.format_number(state.lifetime_wages_paid),
 		Formulas.format_number(state.lifetime_security_wages),
+		Formulas.format_number(state.lifetime_manager_wages),
 		Formulas.format_number(state.lifetime_upgrade_spend),
+		Formulas.format_number(state.lifetime_corporate_investment),
 		Formulas.format_number(state.lifetime_hiring_spend),
 		Formulas.format_number(state.lifetime_maintenance_spend),
 		Formulas.format_number(state.lifetime_advertising_spend),
@@ -962,6 +1093,7 @@ func _refresh_ui() -> void:
 	_update_contracts_section()
 	_update_staff_section()
 	_update_cybersecurity_section()
+	_update_corporate_section()
 	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
 	var margin_status: String = "PROFITABLE" if estimated_margin > 0.0 else "LOSS-MAKING"
@@ -988,7 +1120,7 @@ func _refresh_ui() -> void:
 
 func _update_finance_section() -> void:
 	var income: float = state.lifetime_revenue
-	var spending: float = state.lifetime_material_spend + state.lifetime_energy_cost + state.lifetime_wages_paid + state.lifetime_security_wages + state.lifetime_upgrade_spend + state.lifetime_hiring_spend + state.lifetime_maintenance_spend + state.lifetime_advertising_spend + state.lifetime_security_losses
+	var spending: float = state.lifetime_material_spend + state.lifetime_energy_cost + state.lifetime_wages_paid + state.lifetime_security_wages + state.lifetime_manager_wages + state.lifetime_upgrade_spend + state.lifetime_corporate_investment + state.lifetime_hiring_spend + state.lifetime_maintenance_spend + state.lifetime_advertising_spend + state.lifetime_security_losses
 	finance_label.text = "Standard margin: $%s/cell | Long-Life margin: $%s/cell\nRecorded income: $%s | Recorded spending: $%s | Net cash flow: $%s" % [
 		Formulas.format_number(Formulas.estimated_margin_per_cell(state, "standard")),
 		Formulas.format_number(Formulas.estimated_margin_per_cell(state, "premium")),
@@ -1038,7 +1170,7 @@ func _update_workshop_view() -> void:
 		"▥ Racked storage" if shelving_level > 0 else "▤ Floor boxes",
 		shelving_level,
 		roundi(state.battery_cells + state.premium_cells),
-		roundi(state.warehouse_capacity)
+		roundi(Formulas.effective_warehouse_capacity(state))
 	])
 	_set_workshop_station("crew", "%s\n%d on payroll\n%s" % [
 		"♟ Staffed" if total_workers > 0 else "○ Founder only",
@@ -1169,7 +1301,7 @@ func _update_maintenance_row() -> void:
 	condition_label.visible = true
 	condition_bar.visible = true
 	service_button.visible = true
-	var wear_per_minute: float = Formulas.automated_throughput(state) * Formulas.wear_per_cell(state) * 100.0 * 60.0
+	var wear_per_minute: float = Formulas.garage_throughput(state) * Formulas.wear_per_cell(state) * 100.0 * 60.0
 	var service_due: float = Formulas.service_due_seconds(state)
 	var service_due_text: String = "service due now" if service_due <= 0.0 else "service threshold in ~%s" % _format_duration(service_due)
 	condition_label.text = "Machine condition: %d%% (efficiency %d%%) · wear %.2f%%/min · %s" % [
@@ -1356,6 +1488,134 @@ func _update_cybersecurity_section() -> void:
 		state.lifetime_incidents_contained,
 		state.lifetime_incidents_suffered,
 		Formulas.format_number(state.lifetime_security_losses)
+	]
+
+func _update_corporate_section() -> void:
+	factories_label.text = "Garage + %d satellite factor%s · corporate output %s cells/min · total capacity %s" % [
+		state.factories.size(),
+		"y" if state.factories.size() == 1 else "ies",
+		Formulas.format_number(Formulas.corporate_factory_throughput(state) * 60.0),
+		Formulas.format_number(Formulas.effective_warehouse_capacity(state))
+	]
+	for index: int in range(factory_labels.size()):
+		var label: Label = factory_labels[index]
+		var button: Button = factory_upgrade_buttons[index]
+		if index >= state.factories.size():
+			label.visible = false
+			button.visible = false
+			continue
+		label.visible = true
+		button.visible = true
+		var factory: Dictionary = state.factories[index]
+		var level: int = int(factory.get("level", 1))
+		label.text = "%s · L%d/3\n%s cells/min · %d storage" % [
+			str(factory.get("name", "Factory")),
+			level,
+			Formulas.format_number(level * 0.75 * (1.0 + Formulas.department_effective_level(state, "operations") * 0.10) * 60.0),
+			level * 120
+		]
+		if level >= 3:
+			button.text = "Complete"
+			button.disabled = true
+		else:
+			var cost: float = simulation.factory_upgrade_cost(state, index)
+			button.text = "Expand · $%s" % Formulas.format_number(cost)
+			button.disabled = state.cash < cost
+	if state.factories.size() >= Simulation.FACTORY_NAMES.size():
+		buy_factory_button.text = "Factory portfolio complete"
+		buy_factory_button.disabled = true
+	else:
+		var factory_cost: float = simulation.next_factory_cost(state)
+		buy_factory_button.text = "Acquire %s · $%s" % [Simulation.FACTORY_NAMES[state.factories.size()], Formulas.format_number(factory_cost)]
+		buy_factory_button.disabled = state.cash < factory_cost
+
+	var department_effects: Dictionary = {
+		"operations": "+10% satellite output per effective level",
+		"procurement": "-2.5% component cost per effective level",
+		"sales": "+5% demand per effective level",
+		"security": "+4% detection per effective level",
+	}
+	for department_id: String in department_labels:
+		var level: int = int(state.department_levels.get(department_id, 0))
+		var managed: bool = bool(state.managers.get(department_id, false))
+		var label: Label = department_labels[department_id] as Label
+		label.text = "%s · L%d/3%s\n%s" % [
+			str(Simulation.DEPARTMENTS[department_id]["name"]),
+			level,
+			" · MANAGED" if managed else "",
+			str(department_effects[department_id])
+		]
+		var invest_button: Button = department_invest_buttons[department_id] as Button
+		if level >= 3:
+			invest_button.text = "Complete"
+			invest_button.disabled = true
+		else:
+			var cost: float = simulation.department_cost(state, department_id)
+			invest_button.text = "Invest · $%s" % Formulas.format_number(cost)
+			invest_button.disabled = state.cash < cost
+		var manager_button: Button = department_manager_buttons[department_id] as Button
+		manager_button.text = "Remove manager" if managed else "Hire manager · $%s" % Formulas.format_number(Simulation.MANAGER_HIRING_FEE)
+		manager_button.disabled = (not managed and (level <= 0 or state.cash < Simulation.MANAGER_HIRING_FEE))
+
+	var required_managers: Dictionary = {
+		"material_reorder": "procurement",
+		"preventive_service": "operations",
+		"campaign_guardrail": "sales",
+		"contract_review": "sales",
+	}
+	for rule_id: String in automation_rule_buttons:
+		var toggle: CheckButton = automation_rule_buttons[rule_id] as CheckButton
+		var enabled: bool = bool(state.automation_rules.get(rule_id, false))
+		if toggle.button_pressed != enabled:
+			toggle.set_pressed_no_signal(enabled)
+		toggle.disabled = not bool(state.managers.get(str(required_managers[rule_id]), false))
+	if not is_equal_approx(automation_target_spin.value, state.automation_material_target):
+		automation_target_spin.set_value_no_signal(state.automation_material_target)
+	if not is_equal_approx(automation_reserve_spin.value, state.automation_cash_reserve):
+		automation_reserve_spin.set_value_no_signal(state.automation_cash_reserve)
+
+	if state.active_supply_contract.is_empty():
+		supply_contract_label.text = "No active agreement · spot kit price $%s\nSigned: %d · lifetime savings $%s" % [
+			Formulas.format_number(Formulas.material_unit_cost(state)),
+			state.lifetime_supply_contracts,
+			Formulas.format_number(state.lifetime_supply_savings)
+		]
+	else:
+		supply_contract_label.text = "%s · %d%% discount · %s remaining\nKit price $%s · lifetime savings $%s" % [
+			str(state.active_supply_contract.get("name", "Supply agreement")),
+			roundi(float(state.active_supply_contract.get("discount", 0.0)) * 100.0),
+			_format_duration(float(state.active_supply_contract.get("time_remaining", 0.0))),
+			Formulas.format_number(Formulas.material_unit_cost(state)),
+			Formulas.format_number(state.lifetime_supply_savings)
+		]
+	for plan_id: String in supply_contract_buttons:
+		var button: Button = supply_contract_buttons[plan_id] as Button
+		var plan: Dictionary = Simulation.SUPPLY_PLANS[plan_id]
+		button.text = "%s · $%s · %d%%" % [str(plan["name"]), Formulas.format_number(float(plan["fee"])), roundi(float(plan["discount"]) * 100.0)]
+		button.disabled = not state.active_supply_contract.is_empty() or state.cash < float(plan["fee"])
+
+	var history_note: String = "Collecting the first minute of corporate telemetry."
+	if state.statistics_history.size() >= 2:
+		var first: Dictionary = state.statistics_history.front()
+		var last: Dictionary = state.statistics_history.back()
+		var span: float = maxf(1.0, float(last.get("time", 0.0)) - float(first.get("time", 0.0)))
+		var revenue_rate: float = (float(last.get("revenue", 0.0)) - float(first.get("revenue", 0.0))) / span * 60.0
+		var output_rate: float = (float(last.get("cells_made", 0.0)) - float(first.get("cells_made", 0.0))) / span * 60.0
+		var sales_rate: float = (float(last.get("cells_sold", 0.0)) - float(first.get("cells_sold", 0.0))) / span * 60.0
+		history_note = "%d-minute trend: revenue $%s/min · output %s/min · sales %s/min" % [
+			roundi(span / 60.0),
+			Formulas.format_number(revenue_rate),
+			Formulas.format_number(output_rate),
+			Formulas.format_number(sales_rate)
+		]
+	detailed_stats_label.text = "%s\nCurrent: cash $%s · production %s/min · demand %s/min · risk %d%%\nCorporate investment $%s · manager wages $%s" % [
+		history_note,
+		Formulas.format_number(state.cash),
+		Formulas.format_number(Formulas.automated_throughput(state) * 60.0),
+		Formulas.format_number(state.demand_per_second * 60.0),
+		roundi(Formulas.effective_risk(state) * 100.0),
+		Formulas.format_number(state.lifetime_corporate_investment),
+		Formulas.format_number(state.lifetime_manager_wages)
 	]
 
 func _set_security_node(id: String, text: String) -> void:

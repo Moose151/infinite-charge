@@ -4,6 +4,21 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.20 — 2026-07-23
+
+Milestone Four: Corporate Management complete.
+
+- Added a Corporate workspace for managing factory expansion, departments, managers, automation rules, supplier agreements, and detailed company trends.
+- Added three satellite factories with three expansion levels each; factories add independent throughput, storage capacity, operating risk, and visible portfolio progression.
+- Added Operations, Procurement, Sales, and Corporate Security departments with three investment levels and distinct production, material-cost, demand, and detection effects.
+- Added department managers with hiring costs, continuous payroll, department bonuses, and off-duty behavior when payroll is missed.
+- Added manager-gated automation rules for component reordering, preventive maintenance, campaign cash guardrails, and profitable feasible contract review.
+- Added fixed-term Local and Bulk supply contracts with upfront fees, component discounts, expiry, repeat signing, and lifetime savings.
+- Added rolling minute-by-minute statistics for cash, revenue, production, sales, demand, and security risk, capped at the latest 120 samples.
+- Added a dedicated two-hour corporate balance harness that validates full factory, department, manager, supplier, automation, and statistics progression from a mature-garage handoff.
+- Persisted the full corporate portfolio, management configuration, automation settings, supply agreement, costs, savings, and statistics history.
+- Added `docs/MILESTONE_FOUR_ACCEPTANCE.md` and expanded the headless acceptance suite across all six Milestone Four systems.
+
 ## 0.19 — 2026-07-23
 
 Milestone Three: Industrial Cybersecurity complete.

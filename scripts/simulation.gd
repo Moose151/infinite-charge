@@ -14,6 +14,20 @@ const CYBER_PROGRAMS: Dictionary = {
 	"response": {"state_field": "incident_response_level", "name": "Incident Response", "base_cost": 360.0, "scale": 1.8},
 	"recovery": {"state_field": "recovery_plan_level", "name": "Recovery Planning", "base_cost": 300.0, "scale": 1.7},
 }
+const FACTORY_NAMES: Array[String] = ["Northside Assembly", "Riverside Works", "Airport Industrial Unit"]
+const FACTORY_BASE_COST: float = 3000.0
+const FACTORY_UPGRADE_BASE_COST: float = 1800.0
+const MANAGER_HIRING_FEE: float = 1200.0
+const DEPARTMENTS: Dictionary = {
+	"operations": {"name": "Operations", "base_cost": 650.0, "scale": 1.8},
+	"procurement": {"name": "Procurement", "base_cost": 600.0, "scale": 1.75},
+	"sales": {"name": "Sales", "base_cost": 700.0, "scale": 1.8},
+	"security": {"name": "Corporate Security", "base_cost": 750.0, "scale": 1.85},
+}
+const SUPPLY_PLANS: Dictionary = {
+	"local": {"name": "Local Supplier Schedule", "fee": 500.0, "duration": 900.0, "discount": 0.10},
+	"bulk": {"name": "Bulk Components Agreement", "fee": 1500.0, "duration": 1800.0, "discount": 0.18},
+}
 
 const CONTRACT_BUYERS: Array[String] = [
 	"the Municipal Parks Department",
@@ -73,12 +87,16 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		"market_events": 0,
 		"security_events": 0,
 		"security_wages": 0.0,
+		"manager_wages": 0.0,
 		"threats_detected": 0,
 		"incidents_contained": 0,
 	}
 
 	_pay_wages(state, delta, allow_events, report)
 	_pay_security_staff(state, delta, allow_events, report)
+	_pay_managers(state, delta, allow_events, report)
+	_update_supply_contract(state, delta, allow_events)
+	_run_automation_rules(state)
 	_pay_advertising(state, delta, allow_events, report)
 
 	state.seconds_played += delta
@@ -106,6 +124,7 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 	_update_energy_market(state, delta, allow_events)
 	_update_competitor_market(state, delta, allow_events, report)
 	_update_security_events(state, delta, allow_events, report)
+	_update_statistics_history(state, delta)
 	_check_bankruptcy_rescue(state, allow_events)
 	state.notify_changed()
 	return report
@@ -140,7 +159,9 @@ func _produce_automated(state: GameState, uptime: float, allow_events: bool, rep
 		state.battery_cells += cells_made
 	state.cash -= energy_cost
 	state.lifetime_cells_made += cells_made
-	state.machine_condition = maxf(0.0, state.machine_condition - cells_made * Formulas.wear_per_cell(state))
+	var total_rate: float = Formulas.automated_throughput(state)
+	var garage_share: float = 0.0 if total_rate <= 0.0 else Formulas.garage_throughput(state) / total_rate
+	state.machine_condition = maxf(0.0, state.machine_condition - cells_made * garage_share * Formulas.wear_per_cell(state))
 	state.lifetime_energy_cost += energy_cost
 	report["energy_cost"] = energy_cost
 	report["cells_made"] = cells_made
@@ -192,6 +213,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		"security_losses": 0.0,
 		"advertising_cost": 0.0,
 		"security_wages": 0.0,
+		"manager_wages": 0.0,
 		"competitor_events": 0,
 		"market_events": 0,
 		"security_events": 0,
@@ -203,7 +225,7 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 		var step: float = minf(chunk_seconds, remaining)
 		remaining -= step
 		var report: Dictionary = advance(state, step, allow_events)
-		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost", "security_wages"]:
+		for key: String in ["cells_made", "cells_sold", "revenue", "materials_consumed", "security_losses", "advertising_cost", "security_wages", "manager_wages"]:
 			aggregate[key] = float(aggregate[key]) + float(report[key])
 		for key: String in ["market_events", "security_events", "competitor_events", "threats_detected", "incidents_contained"]:
 			aggregate[key] = int(aggregate[key]) + int(report[key])
@@ -259,6 +281,10 @@ func buy_materials(state: GameState, quantity: float) -> bool:
 	state.raw_materials += kits
 	state.lifetime_materials_bought += kits
 	state.lifetime_material_spend += cost
+	if not state.active_supply_contract.is_empty():
+		var department_discount: float = Formulas.department_effective_level(state, "procurement") * 0.025
+		var without_contract: float = state.material_price * (1.0 - clampf(state.material_discount + department_discount, 0.0, 0.85))
+		state.lifetime_supply_savings += maxf(0.0, kits * without_contract - cost)
 	state.add_event("Purchased %d component kits for $%s." % [kits, Formulas.format_number(cost)])
 	return true
 
@@ -322,6 +348,80 @@ func _pay_security_staff(state: GameState, delta: float, allow_events: bool, rep
 		state.security_staff_on_duty = false
 		if allow_events:
 			state.add_event("Security payroll missed. The analysts have stopped watching the blinking lights.")
+
+func _pay_managers(state: GameState, delta: float, allow_events: bool, report: Dictionary) -> void:
+	var count: int = 0
+	for department_id: String in state.managers:
+		if bool(state.managers[department_id]):
+			count += 1
+	if count == 0:
+		state.manager_payroll_active = true
+		return
+	var due: float = count * Formulas.MANAGER_WAGE_PER_SECOND * delta
+	if state.cash >= due:
+		state.cash -= due
+		state.lifetime_manager_wages += due
+		report["manager_wages"] = float(report["manager_wages"]) + due
+		if not state.manager_payroll_active:
+			state.manager_payroll_active = true
+			if allow_events:
+				state.add_event("Management payroll restored. Delegation has resumed.")
+	elif state.manager_payroll_active:
+		state.manager_payroll_active = false
+		if allow_events:
+			state.add_event("Management payroll missed. All automation rules are awaiting executive review.")
+
+func _update_supply_contract(state: GameState, delta: float, allow_events: bool) -> void:
+	if state.active_supply_contract.is_empty():
+		return
+	state.active_supply_contract["time_remaining"] = maxf(0.0, float(state.active_supply_contract.get("time_remaining", 0.0)) - delta)
+	if float(state.active_supply_contract["time_remaining"]) <= 0.0:
+		var supplier_name: String = str(state.active_supply_contract.get("name", "Supply agreement"))
+		state.active_supply_contract = {}
+		if allow_events:
+			state.add_event("%s expired. Procurement has returned to the thrilling spot market." % supplier_name)
+
+func _run_automation_rules(state: GameState) -> void:
+	if not state.manager_payroll_active:
+		return
+	if bool(state.automation_rules.get("campaign_guardrail", false)) and bool(state.managers.get("sales", false)) and state.cash < state.automation_cash_reserve:
+		for channel_id: String in state.advertising_channels:
+			state.advertising_channels[channel_id] = false
+	if bool(state.automation_rules.get("material_reorder", false)) and bool(state.managers.get("procurement", false)) and state.raw_materials < state.automation_material_target * 0.5:
+		var unit_cost: float = Formulas.material_unit_cost(state)
+		var affordable: int = floori(maxf(0.0, state.cash - state.automation_cash_reserve) / unit_cost)
+		var quantity: int = mini(state.automation_material_target - floori(state.raw_materials), affordable)
+		if quantity > 0:
+			buy_materials(state, quantity)
+	if bool(state.automation_rules.get("preventive_service", false)) and bool(state.managers.get("operations", false)) and state.machine_condition < 0.72:
+		var cost: float = Formulas.service_cost(state)
+		if state.cash >= cost + state.automation_cash_reserve:
+			service_machines(state)
+	if bool(state.automation_rules.get("contract_review", false)) and bool(state.managers.get("sales", false)) and not state.contract_offer.is_empty() and state.active_contract.is_empty():
+		var price: float = float(state.contract_offer.get("price_per_cell", 0.0))
+		var quantity: float = float(state.contract_offer.get("quantity", 0.0))
+		var duration: float = float(state.contract_offer.get("duration", 0.0))
+		var feasible: bool = quantity <= (Formulas.automated_throughput(state) + 0.4) * duration * 0.8 + state.battery_cells
+		var worthwhile: bool = price > Formulas.material_unit_cost(state) + Formulas.energy_cost_per_cell(state)
+		if feasible and worthwhile:
+			accept_contract(state)
+
+func _update_statistics_history(state: GameState, delta: float) -> void:
+	state.statistics_timer += delta
+	while state.statistics_timer >= 60.0:
+		state.statistics_timer -= 60.0
+		state.statistics_history.append({
+			"time": state.seconds_played,
+			"cash": state.cash,
+			"revenue": state.lifetime_revenue,
+			"cells_made": state.lifetime_cells_made,
+			"cells_sold": state.lifetime_cells_sold,
+			"demand_per_minute": state.demand_per_second * 60.0,
+			"production_per_minute": Formulas.automated_throughput(state) * 60.0,
+			"risk": Formulas.effective_risk(state),
+		})
+		if state.statistics_history.size() > 120:
+			state.statistics_history.pop_front()
 
 func hire_worker(state: GameState, role: String) -> bool:
 	if not state.workers.has(role):
@@ -389,6 +489,125 @@ func fire_security_staff(state: GameState) -> bool:
 	if state.security_staff == 0:
 		state.security_staff_on_duty = true
 	state.add_event("Security analyst released. Their access badge has entered a review process.")
+	return true
+
+func next_factory_cost(state: GameState) -> float:
+	return FACTORY_BASE_COST * pow(1.8, state.factories.size())
+
+func buy_factory(state: GameState) -> bool:
+	if state.factories.size() >= FACTORY_NAMES.size():
+		return false
+	var cost: float = next_factory_cost(state)
+	if state.cash < cost:
+		state.add_event("Factory acquisition deferred: the property brochure exceeds available cash.")
+		return false
+	var name: String = FACTORY_NAMES[state.factories.size()]
+	state.cash -= cost
+	state.lifetime_corporate_investment += cost
+	state.factories.append({"name": name, "level": 1})
+	state.risk += 0.03
+	state.add_event("%s acquired. Facilities describes the roof as 'substantially present'." % name)
+	return true
+
+func factory_upgrade_cost(state: GameState, index: int) -> float:
+	if index < 0 or index >= state.factories.size():
+		return INF
+	return FACTORY_UPGRADE_BASE_COST * int(state.factories[index].get("level", 1)) * pow(1.35, index)
+
+func upgrade_factory(state: GameState, index: int) -> bool:
+	if index < 0 or index >= state.factories.size():
+		return false
+	var factory: Dictionary = state.factories[index]
+	var level: int = int(factory.get("level", 1))
+	if level >= 3:
+		return false
+	var cost: float = factory_upgrade_cost(state, index)
+	if state.cash < cost:
+		return false
+	state.cash -= cost
+	state.lifetime_corporate_investment += cost
+	factory["level"] = level + 1
+	state.factories[index] = factory
+	state.risk += 0.015
+	state.add_event("%s expanded to level %d. Another clipboard has been issued." % [str(factory["name"]), level + 1])
+	return true
+
+func department_cost(state: GameState, department_id: String) -> float:
+	if not DEPARTMENTS.has(department_id):
+		return INF
+	var definition: Dictionary = DEPARTMENTS[department_id]
+	var level: int = int(state.department_levels.get(department_id, 0))
+	return float(definition["base_cost"]) * pow(float(definition["scale"]), level)
+
+func invest_department(state: GameState, department_id: String) -> bool:
+	if not DEPARTMENTS.has(department_id):
+		return false
+	var level: int = int(state.department_levels.get(department_id, 0))
+	if level >= 3:
+		return false
+	var cost: float = department_cost(state, department_id)
+	if state.cash < cost:
+		return false
+	state.cash -= cost
+	state.lifetime_corporate_investment += cost
+	state.department_levels[department_id] = level + 1
+	state.add_event("%s department advanced to level %d. Its shared drive now has folders." % [str(DEPARTMENTS[department_id]["name"]), level + 1])
+	return true
+
+func hire_manager(state: GameState, department_id: String) -> bool:
+	if not state.managers.has(department_id) or bool(state.managers[department_id]):
+		return false
+	if int(state.department_levels.get(department_id, 0)) <= 0 or state.cash < MANAGER_HIRING_FEE:
+		return false
+	state.cash -= MANAGER_HIRING_FEE
+	state.lifetime_corporate_investment += MANAGER_HIRING_FEE
+	state.managers[department_id] = true
+	state.manager_payroll_active = true
+	state.add_event("%s manager appointed. A recurring meeting has appeared." % department_id.capitalize())
+	return true
+
+func fire_manager(state: GameState, department_id: String) -> bool:
+	if not state.managers.has(department_id) or not bool(state.managers[department_id]):
+		return false
+	state.managers[department_id] = false
+	state.add_event("%s manager removed. The recurring meeting remains." % department_id.capitalize())
+	return true
+
+func set_automation_rule(state: GameState, rule_id: String, enabled: bool) -> bool:
+	if not state.automation_rules.has(rule_id):
+		return false
+	if bool(state.automation_rules[rule_id]) == enabled:
+		return true
+	var required_manager: String = {
+		"material_reorder": "procurement",
+		"preventive_service": "operations",
+		"campaign_guardrail": "sales",
+		"contract_review": "sales",
+	}.get(rule_id, "")
+	if enabled and (required_manager.is_empty() or not bool(state.managers.get(required_manager, false))):
+		state.add_event("Automation rule unavailable: appoint the %s manager first." % required_manager.capitalize())
+		return false
+	state.automation_rules[rule_id] = enabled
+	state.add_event("%s automation rule %s." % [rule_id.replace("_", " ").capitalize(), "enabled" if enabled else "disabled"])
+	return true
+
+func sign_supply_contract(state: GameState, plan_id: String) -> bool:
+	if not SUPPLY_PLANS.has(plan_id) or not state.active_supply_contract.is_empty():
+		return false
+	var plan: Dictionary = SUPPLY_PLANS[plan_id]
+	var fee: float = float(plan["fee"])
+	if state.cash < fee:
+		return false
+	state.cash -= fee
+	state.lifetime_corporate_investment += fee
+	state.lifetime_supply_contracts += 1
+	state.active_supply_contract = {
+		"id": plan_id,
+		"name": plan["name"],
+		"discount": plan["discount"],
+		"time_remaining": plan["duration"],
+	}
+	state.add_event("%s signed. Procurement has secured a predictable argument." % str(plan["name"]))
 	return true
 
 func _update_energy_market(state: GameState, delta: float, allow_events: bool) -> void:

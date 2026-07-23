@@ -6,7 +6,7 @@ Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-
 
 The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 5, clicking becomes optional as automation scales, and most upgrades max out within the hour. The optimal sale price shifts from ~$4 early (demand-limited) toward $6 late (supply-limited), so the pricing decision stays live throughout the session.
 
-Milestones One, Two, and Three are complete. v0.19 adds the Industrial Cybersecurity layer: a live network map, network zones, segmentation, detection, incident response, recovery planning, and security analysts. The integrated incident pipeline supports detection, containment, mitigated impact, zone attribution, security payroll, and persistent lifetime reporting.
+Milestones One through Four are complete. v0.20 adds Corporate Management: satellite factories, departments, managers, automation rules, fixed-term supply contracts, and rolling detailed statistics. The dedicated corporate harness progresses a mature garage through the entire layer and validates the late-game economy.
 
 The project has been pushed to GitHub:
 
@@ -56,6 +56,8 @@ Avoid starting factories, staff, research trees, contracts, prestige, network ma
 - `tools/balance_harness.gd` simulates a bot player for an hour at several fixed prices and prints a progression table. Run: `godot --headless --path . --script res://tools/balance_harness.gd`.
 - `docs/MILESTONE_TWO_ACCEPTANCE.md` records the acceptance criteria and evidence for the completed Market Depth milestone.
 - `docs/MILESTONE_THREE_ACCEPTANCE.md` records the acceptance criteria and evidence for the completed Industrial Cybersecurity milestone.
+- `docs/MILESTONE_FOUR_ACCEPTANCE.md` records the acceptance criteria and evidence for the completed Corporate Management milestone.
+- `tools/corporate_harness.gd` validates two hours of corporate expansion from the Milestone Four handoff.
 
 Keep simulation behavior out of UI code whenever possible. Future offline progress, tests, automation, and balance tools all depend on `Simulation.advance()` staying independent from the interface.
 
@@ -90,10 +92,10 @@ The player can:
 
 ## Recommended Next Steps
 
-1. Human-playtest the completed Milestones Two and Three together, especially whether cybersecurity arrives at the right point in the garage economy.
-2. Tune programme costs, incident frequency, containment rates, and analyst wages from human playtest feedback.
-3. Tune runway estimates and Operations Watch thresholds if normal early-game operation feels permanently alarmed.
-4. Extend the Garage Floor and network map with richer visuals and animation after their information hierarchy has been human-playtested.
+1. Human-playtest the full Milestones Two–Four progression, especially the handoff from garage upgrades into cybersecurity and corporate management.
+2. Tune factory and department costs, manager wages, automation thresholds, and supplier-contract value from human feedback.
+3. Review the detailed-statistics presentation and decide whether graphs materially improve decisions over the current trend summary.
+4. Begin Milestone Five only after the full corporate handoff has been human-playtested.
 
 ## Balance Changes (2026-07-15)
 

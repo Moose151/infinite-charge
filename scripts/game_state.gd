@@ -72,6 +72,26 @@ var lifetime_incidents_contained: int = 0
 var lifetime_incidents_suffered: int = 0
 var last_security_incident: Dictionary = {}
 
+var factories: Array[Dictionary] = []
+var department_levels: Dictionary = {"operations": 0, "procurement": 0, "sales": 0, "security": 0}
+var managers: Dictionary = {"operations": false, "procurement": false, "sales": false, "security": false}
+var manager_payroll_active: bool = true
+var automation_rules: Dictionary = {
+	"material_reorder": false,
+	"preventive_service": false,
+	"campaign_guardrail": false,
+	"contract_review": false,
+}
+var automation_material_target: int = 120
+var automation_cash_reserve: float = 100.0
+var active_supply_contract: Dictionary = {}
+var lifetime_supply_contracts: int = 0
+var lifetime_supply_savings: float = 0.0
+var lifetime_manager_wages: float = 0.0
+var lifetime_corporate_investment: float = 0.0
+var statistics_timer: float = 0.0
+var statistics_history: Array[Dictionary] = []
+
 var demand_per_second: float = 0.0
 var sales_per_second: float = 0.0
 var lifetime_cells_made: float = 0.0
@@ -173,6 +193,20 @@ func to_save_data() -> Dictionary:
 		"lifetime_incidents_contained": lifetime_incidents_contained,
 		"lifetime_incidents_suffered": lifetime_incidents_suffered,
 		"last_security_incident": last_security_incident,
+		"factories": factories,
+		"department_levels": department_levels,
+		"managers": managers,
+		"manager_payroll_active": manager_payroll_active,
+		"automation_rules": automation_rules,
+		"automation_material_target": automation_material_target,
+		"automation_cash_reserve": automation_cash_reserve,
+		"active_supply_contract": active_supply_contract,
+		"lifetime_supply_contracts": lifetime_supply_contracts,
+		"lifetime_supply_savings": lifetime_supply_savings,
+		"lifetime_manager_wages": lifetime_manager_wages,
+		"lifetime_corporate_investment": lifetime_corporate_investment,
+		"statistics_timer": statistics_timer,
+		"statistics_history": statistics_history,
 		"demand_per_second": demand_per_second,
 		"sales_per_second": sales_per_second,
 		"lifetime_cells_made": lifetime_cells_made,
@@ -275,6 +309,37 @@ func load_save_data(data: Dictionary) -> void:
 	lifetime_incidents_contained = int(data.get("lifetime_incidents_contained", lifetime_incidents_contained))
 	lifetime_incidents_suffered = int(data.get("lifetime_incidents_suffered", lifetime_incidents_suffered))
 	last_security_incident = data.get("last_security_incident", {})
+	factories.clear()
+	for loaded_factory: Variant in data.get("factories", []):
+		if typeof(loaded_factory) == TYPE_DICTIONARY:
+			var factory: Dictionary = loaded_factory
+			factories.append({
+				"name": str(factory.get("name", "Satellite Factory")),
+				"level": clampi(int(factory.get("level", 1)), 1, 3),
+			})
+	var loaded_departments: Dictionary = data.get("department_levels", {})
+	var loaded_managers: Dictionary = data.get("managers", {})
+	var loaded_rules: Dictionary = data.get("automation_rules", {})
+	for department_id: String in department_levels:
+		department_levels[department_id] = clampi(int(loaded_departments.get(department_id, 0)), 0, 3)
+		managers[department_id] = bool(loaded_managers.get(department_id, false))
+	for rule_id: String in automation_rules:
+		automation_rules[rule_id] = bool(loaded_rules.get(rule_id, false))
+	manager_payroll_active = bool(data.get("manager_payroll_active", manager_payroll_active))
+	automation_material_target = clampi(int(data.get("automation_material_target", automation_material_target)), 10, 1000)
+	automation_cash_reserve = clampf(float(data.get("automation_cash_reserve", automation_cash_reserve)), 0.0, 1000000.0)
+	active_supply_contract = data.get("active_supply_contract", {})
+	lifetime_supply_contracts = int(data.get("lifetime_supply_contracts", lifetime_supply_contracts))
+	lifetime_supply_savings = float(data.get("lifetime_supply_savings", lifetime_supply_savings))
+	lifetime_manager_wages = float(data.get("lifetime_manager_wages", lifetime_manager_wages))
+	lifetime_corporate_investment = float(data.get("lifetime_corporate_investment", lifetime_corporate_investment))
+	statistics_timer = float(data.get("statistics_timer", statistics_timer))
+	statistics_history.clear()
+	for loaded_sample: Variant in data.get("statistics_history", []):
+		if typeof(loaded_sample) == TYPE_DICTIONARY:
+			statistics_history.append(loaded_sample)
+	if statistics_history.size() > 120:
+		statistics_history = statistics_history.slice(statistics_history.size() - 120)
 	demand_per_second = float(data.get("demand_per_second", demand_per_second))
 	sales_per_second = float(data.get("sales_per_second", sales_per_second))
 	lifetime_cells_made = float(data.get("lifetime_cells_made", lifetime_cells_made))

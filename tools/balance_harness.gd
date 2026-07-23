@@ -29,6 +29,7 @@ func _run_playthrough(sale_price: float) -> void:
 	var first_automation_at: float = -1.0
 	var upgrades_bought: int = 0
 	var cyber_upgrades_bought: int = 0
+	var corporate_actions: int = 0
 	var first_approved_at: float = -1.0
 	var first_assured_at: float = -1.0
 
@@ -109,6 +110,39 @@ func _run_playthrough(sale_price: float) -> void:
 			if state.security_staff < mini(Formulas.MAX_SECURITY_STAFF, state.detection_level) and state.cash >= Simulation.SECURITY_STAFF_HIRING_FEE + 800.0:
 				simulation.hire_security_staff(state)
 
+		# Establish corporate management after the garage economy is stable.
+		if elapsed >= 1800.0:
+			var department_choice: String = ""
+			var department_level: int = 4
+			for department_id: String in ["operations", "procurement", "sales", "security"]:
+				var level: int = int(state.department_levels[department_id])
+				if level < department_level and level < 3:
+					department_level = level
+					department_choice = department_id
+			if not department_choice.is_empty():
+				var department_cost: float = simulation.department_cost(state, department_choice)
+				if state.cash >= department_cost + 300.0 and simulation.invest_department(state, department_choice):
+					corporate_actions += 1
+			for department_id: String in ["operations", "procurement", "sales", "security"]:
+				if int(state.department_levels[department_id]) > 0 and not bool(state.managers[department_id]) and state.cash >= Simulation.MANAGER_HIRING_FEE + 600.0:
+					if simulation.hire_manager(state, department_id):
+						corporate_actions += 1
+						break
+			if bool(state.managers["procurement"]):
+				simulation.set_automation_rule(state, "material_reorder", true)
+			if bool(state.managers["operations"]):
+				simulation.set_automation_rule(state, "preventive_service", true)
+			if bool(state.managers["sales"]):
+				simulation.set_automation_rule(state, "campaign_guardrail", true)
+				simulation.set_automation_rule(state, "contract_review", true)
+			if int(state.department_levels["procurement"]) > 0 and state.active_supply_contract.is_empty() and state.cash >= float(Simulation.SUPPLY_PLANS["local"]["fee"]) + 300.0:
+				if simulation.sign_supply_contract(state, "local"):
+					corporate_actions += 1
+			if state.factories.size() < Simulation.FACTORY_NAMES.size():
+				var factory_cost: float = simulation.next_factory_cost(state)
+				if state.cash >= factory_cost + 800.0 and simulation.buy_factory(state):
+					corporate_actions += 1
+
 		# Greedy: buy the cheapest affordable upgrade, keeping a cash reserve.
 		var best: Dictionary = {}
 		var best_cost: float = INF
@@ -177,6 +211,19 @@ func _run_playthrough(sale_price: float) -> void:
 		state.recovery_plan_level, state.security_staff, cyber_upgrades_bought,
 		state.lifetime_threats_detected, state.lifetime_incidents_contained, state.lifetime_incidents_suffered
 	])
+	print("Corporate: factories %d | departments O%d/P%d/S%d/C%d | managers %d | actions %d | supply contracts %d | savings $%s | samples %d" % [
+		state.factories.size(), int(state.department_levels["operations"]), int(state.department_levels["procurement"]),
+		int(state.department_levels["sales"]), int(state.department_levels["security"]),
+		_count_managers(state), corporate_actions, state.lifetime_supply_contracts,
+		Formulas.format_number(state.lifetime_supply_savings), state.statistics_history.size()
+	])
+
+func _count_managers(state: GameState) -> int:
+	var count: int = 0
+	for department_id: String in state.managers:
+		if bool(state.managers[department_id]):
+			count += 1
+	return count
 
 func _load_upgrades() -> Array[Dictionary]:
 	var file: FileAccess = FileAccess.open(UPGRADE_PATH, FileAccess.READ)

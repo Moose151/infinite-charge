@@ -72,7 +72,8 @@ static func customer_segment_demand(state: GameState, product_id: String = "stan
 		var competitor_factor: float = competitor_demand_factor(state, product_id, float(definition["price_sensitivity"]))
 		var price_factor: float = pow(price_ratio, -float(definition["price_sensitivity"]))
 		var quality_factor: float = pow(clampf(quality, 0.25, 4.0), float(definition["quality_sensitivity"]))
-		var demand: float = maxf(0.0, 0.7 * state.awareness * (1.0 + channel_boost) * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty) * competitor_factor)
+		var sales_factor: float = 1.0 + department_effective_level(state, "sales") * 0.05
+		var demand: float = maxf(0.0, 0.7 * state.awareness * sales_factor * (1.0 + channel_boost) * float(definition["share"]) * product_affinity * price_factor * quality_factor * trust_factor * (1.0 - security_penalty) * competitor_factor)
 		results.append({
 			"id": definition["id"],
 			"name": definition["name"],
@@ -111,6 +112,7 @@ const WORKER_HIRING_FEE: float = 150.0
 const MAX_WORKERS_PER_ROLE: int = 2
 const SECURITY_STAFF_WAGE_PER_SECOND: float = 0.12
 const MAX_SECURITY_STAFF: int = 3
+const MANAGER_WAGE_PER_SECOND: float = 0.20
 
 static func active_workers(state: GameState, role: String) -> int:
 	if state.staff_striking:
@@ -126,11 +128,26 @@ static func staffed_assembly_rate(state: GameState) -> float:
 static func staffed_testing_rate(state: GameState) -> float:
 	return state.testing_rate + active_workers(state, "testing") * WORKER_STAGE_RATE
 
-static func automated_throughput(state: GameState) -> float:
+static func garage_throughput(state: GameState) -> float:
 	return minf(staffed_assembly_rate(state), staffed_prep_rate(state))
 
+static func department_effective_level(state: GameState, department_id: String) -> float:
+	var level: float = float(state.department_levels.get(department_id, 0))
+	if state.manager_payroll_active and bool(state.managers.get(department_id, false)):
+		level += 0.5
+	return level
+
+static func corporate_factory_throughput(state: GameState) -> float:
+	var base_rate: float = 0.0
+	for factory: Dictionary in state.factories:
+		base_rate += int(factory.get("level", 1)) * 0.75
+	return base_rate * (1.0 + department_effective_level(state, "operations") * 0.10)
+
+static func automated_throughput(state: GameState) -> float:
+	return garage_throughput(state) + corporate_factory_throughput(state)
+
 static func testing_coverage(state: GameState) -> float:
-	var throughput: float = automated_throughput(state)
+	var throughput: float = garage_throughput(state)
 	if throughput <= 0.001:
 		return 1.0
 	return clampf(staffed_testing_rate(state) / throughput, 0.0, 1.0)
@@ -157,7 +174,7 @@ static func active_security_staff(state: GameState) -> int:
 	return state.security_staff if state.security_staff_on_duty else 0
 
 static func detection_strength(state: GameState) -> float:
-	return clampf(state.detection_level * 0.16 + active_security_staff(state) * 0.10, 0.0, 0.85)
+	return clampf(state.detection_level * 0.16 + active_security_staff(state) * 0.10 + department_effective_level(state, "security") * 0.04, 0.0, 0.85)
 
 static func response_strength(state: GameState) -> float:
 	return clampf(state.incident_response_level * 0.15 + active_security_staff(state) * 0.08, 0.0, 0.80)
@@ -172,7 +189,9 @@ static func network_zone_count(state: GameState) -> int:
 	return 1 + state.network_segmentation_level
 
 static func material_unit_cost(state: GameState) -> float:
-	return maxf(0.05, state.material_price * (1.0 - clampf(state.material_discount, 0.0, 0.85)))
+	var department_discount: float = department_effective_level(state, "procurement") * 0.025
+	var supply_discount: float = float(state.active_supply_contract.get("discount", 0.0))
+	return maxf(0.05, state.material_price * (1.0 - clampf(state.material_discount + department_discount + supply_discount, 0.0, 0.85)))
 
 static func estimated_margin_per_cell(state: GameState, product_id: String = "standard") -> float:
 	var price: float = state.premium_sale_price if product_id == "premium" else state.sale_price
@@ -211,7 +230,7 @@ static func warehouse_fill_seconds(state: GameState) -> float:
 	return space / net_fill if net_fill > 0.0 else INF
 
 static func service_due_seconds(state: GameState, service_threshold: float = 0.7) -> float:
-	var wear_per_second: float = automated_throughput(state) * wear_per_cell(state)
+	var wear_per_second: float = garage_throughput(state) * wear_per_cell(state)
 	var condition_before_service: float = state.machine_condition - service_threshold
 	return condition_before_service / wear_per_second if condition_before_service > 0.0 and wear_per_second > 0.0 else 0.0
 
@@ -219,7 +238,13 @@ static func service_cost(state: GameState) -> float:
 	return 25.0 + 60.0 * state.production_per_second * (1.0 - clampf(state.machine_condition, 0.0, 1.0))
 
 static func warehouse_space(state: GameState) -> float:
-	return maxf(0.0, state.warehouse_capacity - state.battery_cells - state.premium_cells)
+	return maxf(0.0, effective_warehouse_capacity(state) - state.battery_cells - state.premium_cells)
+
+static func effective_warehouse_capacity(state: GameState) -> float:
+	var corporate_capacity: float = 0.0
+	for factory: Dictionary in state.factories:
+		corporate_capacity += int(factory.get("level", 1)) * 120.0
+	return state.warehouse_capacity + corporate_capacity
 
 static func product_material_cost(product_id: String) -> float:
 	return 2.0 if product_id == "premium" else 1.0

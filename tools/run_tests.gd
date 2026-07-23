@@ -27,6 +27,7 @@ func _init() -> void:
 	_test_employees()
 	_test_contracts()
 	_test_cybersecurity_programs()
+	_test_corporate_management()
 	_test_offline_advance_has_no_security_events()
 	_test_security_event_effects()
 	_test_bankruptcy_rescue()
@@ -638,6 +639,94 @@ func _test_cybersecurity_programs() -> void:
 	_check(int(monitor_report["incidents_contained"]) > 0, "incident response contains detected threats")
 	_check(monitored.lifetime_incidents_contained == int(monitor_report["incidents_contained"]), "containment lifetime statistic tracked")
 
+func _test_corporate_management() -> void:
+	var state: GameState = GameState.new()
+	var simulation: Simulation = _make_sim()
+	state.cash = 100000.0
+	var base_capacity: float = Formulas.effective_warehouse_capacity(state)
+	_check(simulation.buy_factory(state), "satellite factory can be acquired")
+	_check(state.factories.size() == 1, "factory portfolio stores acquisition")
+	_check(Formulas.corporate_factory_throughput(state) > 0.0, "satellite factory adds production")
+	_check(Formulas.effective_warehouse_capacity(state) == base_capacity + 120.0, "satellite factory adds storage")
+	var level_one_rate: float = Formulas.corporate_factory_throughput(state)
+	_check(simulation.upgrade_factory(state, 0), "satellite factory can expand")
+	_check(int(state.factories[0]["level"]) == 2, "factory level stored")
+	_check(Formulas.corporate_factory_throughput(state) > level_one_rate, "factory expansion adds throughput")
+	_check(not simulation.upgrade_factory(state, 99), "invalid factory expansion rejected")
+
+	var material_before: float = Formulas.material_unit_cost(state)
+	_check(simulation.invest_department(state, "procurement"), "procurement department can advance")
+	_check(Formulas.material_unit_cost(state) < material_before, "procurement department lowers component price")
+	var demand_before: float = Formulas.demand_per_second(state)
+	_check(simulation.invest_department(state, "sales"), "sales department can advance")
+	_check(Formulas.demand_per_second(state) > demand_before, "sales department raises demand")
+	var factory_before_operations: float = Formulas.corporate_factory_throughput(state)
+	_check(simulation.invest_department(state, "operations"), "operations department can advance")
+	_check(Formulas.corporate_factory_throughput(state) > factory_before_operations, "operations department raises factory output")
+	var detection_before: float = Formulas.detection_strength(state)
+	_check(simulation.invest_department(state, "security"), "corporate security department can advance")
+	_check(Formulas.detection_strength(state) > detection_before, "security department raises detection")
+	_check(not simulation.invest_department(state, "unknown"), "unknown department rejected")
+
+	var effective_procurement_before: float = Formulas.department_effective_level(state, "procurement")
+	_check(simulation.hire_manager(state, "procurement"), "department manager can be appointed")
+	_check(Formulas.department_effective_level(state, "procurement") > effective_procurement_before, "manager boosts department effectiveness")
+	_check(simulation.hire_manager(state, "operations"), "operations manager can be appointed")
+	_check(simulation.hire_manager(state, "sales"), "sales manager can be appointed")
+	var manager_wages_before: float = state.lifetime_manager_wages
+	simulation.advance(state, 10.0, false)
+	_check(is_equal_approx(state.lifetime_manager_wages - manager_wages_before, 6.0), "manager wages paid continuously")
+	state.cash = 0.0
+	simulation.advance(state, 1.0, false)
+	_check(not state.manager_payroll_active, "unpaid managers stop working")
+	state.cash = 1000.0
+	simulation.advance(state, 1.0, false)
+	_check(state.manager_payroll_active, "managers resume after payroll recovers")
+
+	_check(simulation.set_automation_rule(state, "material_reorder", true), "procurement manager unlocks reorder rule")
+	_check(simulation.set_automation_rule(state, "preventive_service", true), "operations manager unlocks service rule")
+	_check(simulation.set_automation_rule(state, "campaign_guardrail", true), "sales manager unlocks campaign guardrail")
+	_check(simulation.set_automation_rule(state, "contract_review", true), "sales manager unlocks contract review")
+	_check(not simulation.set_automation_rule(state, "unknown", true), "unknown automation rule rejected")
+	state.automation_material_target = 100
+	state.automation_cash_reserve = 100.0
+	state.raw_materials = 0.0
+	state.cash = 1000.0
+	simulation._run_automation_rules(state)
+	_check(state.raw_materials > 0.0, "reorder rule buys component kits")
+	state.production_per_second = 1.0
+	state.machine_condition = 0.5
+	state.cash = 1000.0
+	simulation._run_automation_rules(state)
+	_check(is_equal_approx(state.machine_condition, 1.0), "service rule restores machine condition")
+	state.advertising_channels["neighbourhood_flyers"] = true
+	state.cash = 50.0
+	simulation._run_automation_rules(state)
+	_check(not bool(state.advertising_channels["neighbourhood_flyers"]), "campaign guardrail protects cash reserve")
+	state.cash = 1000.0
+	state.battery_cells = 100.0
+	state.contract_offer = {"buyer": "automation client", "quantity": 10.0, "price_per_cell": 6.0, "duration": 60.0, "expires_in": 60.0}
+	simulation._run_automation_rules(state)
+	_check(not state.active_contract.is_empty(), "contract review accepts feasible profitable offer")
+
+	var supply_state: GameState = GameState.new()
+	supply_state.cash = 5000.0
+	var spot_cost: float = Formulas.material_unit_cost(supply_state)
+	_check(simulation.sign_supply_contract(supply_state, "local"), "supply contract can be signed")
+	_check(Formulas.material_unit_cost(supply_state) < spot_cost, "supply contract lowers component price")
+	simulation.buy_materials(supply_state, 10)
+	_check(supply_state.lifetime_supply_savings > 0.0, "supply contract savings tracked")
+	_check(not simulation.sign_supply_contract(supply_state, "bulk"), "overlapping supply contract rejected")
+	simulation._update_supply_contract(supply_state, 901.0, false)
+	_check(supply_state.active_supply_contract.is_empty(), "supply contract expires")
+
+	var stats_state: GameState = GameState.new()
+	var stats_simulation: Simulation = _make_sim()
+	stats_simulation.advance(stats_state, 120.0, false)
+	_check(stats_state.statistics_history.size() == 2, "corporate statistics sampled each minute")
+	_check(stats_state.statistics_history.back().has("production_per_minute"), "statistics include production rate")
+	_check(stats_state.statistics_history.back().has("risk"), "statistics include security risk")
+
 func _test_offline_advance_has_no_security_events() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
@@ -743,6 +832,20 @@ func _test_save_round_trip() -> void:
 	state.lifetime_incidents_contained = 8
 	state.lifetime_incidents_suffered = 4
 	state.last_security_incident = {"status": "contained", "zone": "Production", "type": "downtime", "message": "Test alert."}
+	state.factories = [{"name": "Test Works", "level": 2}]
+	state.department_levels = {"operations": 3, "procurement": 2, "sales": 1, "security": 3}
+	state.managers = {"operations": true, "procurement": true, "sales": false, "security": true}
+	state.manager_payroll_active = false
+	state.automation_rules = {"material_reorder": true, "preventive_service": true, "campaign_guardrail": false, "contract_review": true}
+	state.automation_material_target = 330
+	state.automation_cash_reserve = 425.0
+	state.active_supply_contract = {"id": "bulk", "name": "Test Supply", "discount": 0.18, "time_remaining": 777.0}
+	state.lifetime_supply_contracts = 3
+	state.lifetime_supply_savings = 606.0
+	state.lifetime_manager_wages = 707.0
+	state.lifetime_corporate_investment = 808.0
+	state.statistics_timer = 12.0
+	state.statistics_history = [{"time": 60.0, "cash": 10.0, "production_per_minute": 2.0, "risk": 0.1}]
 	state.advertising_channels["business_directory"] = true
 	state.lifetime_advertising_spend = 77.0
 	state.competitor_name = "Test Power Ltd"
@@ -802,6 +905,18 @@ func _test_save_round_trip() -> void:
 	_check(loaded.lifetime_incidents_contained == 8, "contained incident statistic restored")
 	_check(loaded.lifetime_incidents_suffered == 4, "impact incident statistic restored")
 	_check(str(loaded.last_security_incident.get("zone", "")) == "Production", "last incident record restored")
+	_check(loaded.factories.size() == 1 and int(loaded.factories[0]["level"]) == 2, "factory portfolio restored")
+	_check(int(loaded.department_levels["procurement"]) == 2, "department levels restored")
+	_check(bool(loaded.managers["operations"]) and not loaded.manager_payroll_active, "manager state restored")
+	_check(bool(loaded.automation_rules["contract_review"]), "automation rules restored")
+	_check(loaded.automation_material_target == 330, "automation material target restored")
+	_check(is_equal_approx(loaded.automation_cash_reserve, 425.0), "automation cash reserve restored")
+	_check(str(loaded.active_supply_contract.get("id", "")) == "bulk", "supply contract restored")
+	_check(loaded.lifetime_supply_contracts == 3, "supply contract count restored")
+	_check(is_equal_approx(loaded.lifetime_supply_savings, 606.0), "supply savings restored")
+	_check(is_equal_approx(loaded.lifetime_manager_wages, 707.0), "manager wages restored")
+	_check(is_equal_approx(loaded.lifetime_corporate_investment, 808.0), "corporate investment restored")
+	_check(loaded.statistics_history.size() == 1, "detailed statistics history restored")
 	_check(bool(loaded.advertising_channels.get("business_directory", false)), "advertising channel restored")
 	_check(is_equal_approx(loaded.lifetime_advertising_spend, 77.0), "advertising spend restored")
 	_check(loaded.competitor_name == "Test Power Ltd", "competitor name restored")

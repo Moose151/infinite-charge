@@ -31,6 +31,8 @@ The project is currently focused on the first garage-stage MVP:
 - `data/upgrades/garage_upgrades.json` - starter upgrade definitions
 - `docs/MILESTONE_TWO_ACCEPTANCE.md` - completed Market Depth acceptance criteria and validation record
 - `docs/MILESTONE_THREE_ACCEPTANCE.md` - completed Industrial Cybersecurity acceptance criteria and validation record
+- `docs/MILESTONE_FOUR_ACCEPTANCE.md` - completed Corporate Management acceptance criteria and validation record
+- `tools/corporate_harness.gd` - two-hour corporate progression and balance validation
 
 ## Next Implementation Step
 
