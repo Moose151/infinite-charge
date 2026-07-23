@@ -2,11 +2,11 @@
 
 ## Current Status
 
-Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-stage MVP: one scene, a data-driven upgrade list, data-driven security events, a separate simulation layer, JSON save/load, offline progress, a headless balance harness, a headless test suite, and a simple desktop UI.
+Infinite Charge is a Godot 4 idle-management game. The repo contains the garage-stage MVP: one scene, a data-driven upgrade list, data-driven security events, a separate simulation layer, JSON save/load, offline progress, a headless balance harness, a headless test suite, and a tabbed desktop operations-console UI.
 
 The MVP loop has been balance-tested via `tools/balance_harness.gd` (a bot that plays the first hour at several price points). At the default $4 price a player reaches first automation around minute 5, clicking becomes optional as automation scales, and most upgrades max out within the hour. The optimal sale price shifts from ~$4 early (demand-limited) toward $6 late (supply-limited), so the pricing decision stays live throughout the session.
 
-Milestone One is complete: warehouse capacity, maintenance, production stages, quality, contracts, employees, and energy are all in. **Milestone Two is underway.** Customer segments arrived in v0.7, multiple products in v0.8, advertising channels in v0.9, and lightweight competitor pressure in v0.10. Volt & Sons now changes its price and quality position over time, affecting sensitive customer segments most. Next per the scope: reputation and contract requirements.
+Milestones One and Two are complete. The Market Depth acceptance audit is recorded in `docs/MILESTONE_TWO_ACCEPTANCE.md`: customer segments, multiple products, advertising channels, competitors, multidimensional reputation, and reputation-qualified contracts are implemented, visible, persistent, and covered by integration tests. v0.18 is the milestone completion release.
 
 The project has been pushed to GitHub:
 
@@ -54,6 +54,7 @@ Avoid starting factories, staff, research trees, contracts, prestige, network ma
 - `data/events/security_events.json` defines security events: trigger cadence, chance scaling with risk, and per-event type (`cash`, `inventory`, `downtime`), weight, severity range, and message.
 - `tools/run_tests.gd` is the headless test suite (customer segments, multiple products, Formulas, Simulation actions, security events, downtime, warehouse capacity, maintenance, production stages, quality, energy, employees, contracts, chunked offline advance, bankruptcy rescue, save round-trip). Run: `godot --headless --path . --script res://tools/run_tests.gd` (exits non-zero on failure).
 - `tools/balance_harness.gd` simulates a bot player for an hour at several fixed prices and prints a progression table. Run: `godot --headless --path . --script res://tools/balance_harness.gd`.
+- `docs/MILESTONE_TWO_ACCEPTANCE.md` records the acceptance criteria and evidence for the completed Market Depth milestone.
 
 Keep simulation behavior out of UI code whenever possible. Future offline progress, tests, automation, and balance tools all depend on `Simulation.advance()` staying independent from the interface.
 
@@ -62,9 +63,10 @@ Keep simulation behavior out of UI code whenever possible. Future offline progre
 The player can:
 
 - assemble cells manually
-- buy raw materials
+- buy whole component kits with live purchase prices
 - adjust sale price
 - sell cells automatically based on demand
+- accumulate production and demand smoothly while completing and selling only whole cells
 - unlock Long-Life Cells, route the shared line between products, and price each product separately
 - see material prices drift over time
 - buy starter upgrades
@@ -79,18 +81,18 @@ The player can:
 
 ## Known Limitations
 
-- The UI is still an early code-built presentation. Recent passes made it more playable, but the desired long-term direction is a visible workshop/factory view that changes as the player upgrades: better benches, shelves, machines, staff presence, security hardware, cosmetic unlocks, and eventually richer factory/company spaces.
-- Balance is harness-tested but not yet human-playtested; the bot cannot judge feel.
+- The code-built UI received a full information-architecture pass in v0.11, a theme system in v0.12, and a state-driven Garage Floor overview in v0.15. The overview establishes visible equipment and staffing progression, but it remains a compact operations schematic rather than an illustrated factory scene. Richer spaces, animation, and optional cosmetics remain future work.
+- The v0.13 economy is harness-tested but not yet human-playtested; the bot now tapers manual clicking after automation, but cannot judge feel.
 - Save migration exists only as a version field, not a real migration pipeline.
-- Settings (speed, autosave, offline limit, interface scale) live inline in the middle panel rather than a dedicated settings screen, and are stored in the save file rather than a separate config.
+- Settings (speed, autosave, offline limit, interface scale) now live in the Office tab, but are stored in the save file rather than a separate config.
 - The interface scale applies via `Window.content_scale_factor`; it has been verified headless only.
 
 ## Recommended Next Steps
 
-1. Human-playtest the full loop now that Milestone One is complete. Prioritize feel: the first screen should make the garage satisfying to operate before Milestone Two adds more market depth.
-2. Continue Milestone Two (Market Depth) with a visible reputation system that distinguishes general trust from delivery, quality, and security reputation.
-3. Plan a visual workshop layer: show the current garage, then let upgrades visibly add equipment, automation, storage, staff, security controls, and optional cosmetics.
-4. Consider surfacing wear rate and time-to-empty-warehouse estimates now that production stages add complexity.
+1. Human-playtest the completed Milestone Two loop. Prioritize pricing, campaign targeting, Long-Life positioning, reputation pacing, and contract qualification feel.
+2. Tune runway estimates and Operations Watch thresholds if normal early-game operation feels permanently alarmed.
+3. Extend the Garage Floor layer with richer visuals, animation, and optional cosmetics after its information and pacing have been human-playtested.
+4. Begin Milestone Three with the network map only after the completed Market Depth loop has had a human playtest.
 
 ## Balance Changes (2026-07-15)
 

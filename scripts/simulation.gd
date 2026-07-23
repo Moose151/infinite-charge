@@ -17,6 +17,12 @@ const CONTRACT_BUYERS: Array[String] = [
 	"a very confident camping supply store",
 ]
 
+const CONTRACT_TIERS: Array[Dictionary] = [
+	{"name": "Open Market", "requirements": {}, "quantity_scale": 1.0, "price_scale": 1.0},
+	{"name": "Approved Supplier", "requirements": {"general": 55.0, "delivery": 55.0}, "quantity_scale": 1.25, "price_scale": 1.08},
+	{"name": "Assured Supply", "requirements": {"general": 65.0, "delivery": 65.0, "quality": 60.0, "security": 55.0}, "quantity_scale": 1.6, "price_scale": 1.18},
+]
+
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 var security_event_period: float = 40.0
 var security_base_chance: float = 0.12
@@ -72,59 +78,18 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 		uptime = maxf(0.0, delta - state.production_downtime)
 		state.production_downtime = maxf(0.0, state.production_downtime - delta)
 
-	var space: float = Formulas.warehouse_space(state)
-	var automated_target: float = Formulas.automated_throughput(state) * uptime
-	var material_per_cell: float = Formulas.product_material_cost(state.active_product)
-	var automated_cells: float = minf(minf(state.raw_materials / material_per_cell, space), automated_target)
-	if automated_cells > 0.0:
-		state.raw_materials -= automated_cells * material_per_cell
-		if state.active_product == "premium":
-			state.premium_cells += automated_cells
-		else:
-			state.battery_cells += automated_cells
-		state.lifetime_cells_made += automated_cells
-		state.machine_condition = maxf(0.0, state.machine_condition - automated_cells * Formulas.wear_per_cell(state))
-		var energy_cost: float = minf(automated_cells * Formulas.energy_cost_per_cell(state), state.cash)
-		state.cash -= energy_cost
-		state.lifetime_energy_cost += energy_cost
-		report["energy_cost"] = energy_cost
-		report["cells_made"] = automated_cells
-		report["materials_consumed"] = automated_cells * material_per_cell
-	elif allow_events and automated_target > 0.0 and space <= 0.0 and state.raw_materials > 0.0:
-		if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
-			state.add_event("Warehouse full. Automation is stacking cells vertically and hoping.")
+	_produce_automated(state, uptime, allow_events, report)
 
 	if allow_events:
 		_update_contracts(state, delta, report)
 
-	var demanded_cells: float = state.demand_per_second * delta
-	var sellable_cells: float = minf(state.battery_cells, demanded_cells)
-	state.lifetime_sales_lost += maxf(0.0, demanded_cells - sellable_cells)
-	if sellable_cells > 0.0:
-		var revenue: float = sellable_cells * state.sale_price
-		state.battery_cells -= sellable_cells
-		state.cash += revenue
-		state.sales_per_second = sellable_cells / maxf(delta, 0.001)
-		state.lifetime_cells_sold += sellable_cells
-		state.lifetime_revenue += revenue
-		report["cells_sold"] = sellable_cells
-		report["revenue"] = revenue
-	else:
-		state.sales_per_second = 0.0
-
+	var standard_sold: int = _sell_spot_product(state, "standard", delta, report)
+	var premium_sold: int = 0
 	if state.premium_product_unlocked:
-		var premium_demanded: float = Formulas.demand_per_second(state, "premium") * delta
-		var premium_sold: float = minf(state.premium_cells, premium_demanded)
-		state.lifetime_sales_lost += maxf(0.0, premium_demanded - premium_sold)
-		if premium_sold > 0.0:
-			var premium_revenue: float = premium_sold * state.premium_sale_price
-			state.premium_cells -= premium_sold
-			state.cash += premium_revenue
-			state.lifetime_cells_sold += premium_sold
-			state.lifetime_revenue += premium_revenue
-			report["cells_sold"] = float(report["cells_sold"]) + premium_sold
-			report["revenue"] = float(report["revenue"]) + premium_revenue
-	state.sales_per_second = float(report["cells_sold"]) / maxf(delta, 0.001)
+		premium_sold = _sell_spot_product(state, "premium", delta, report)
+	var standard_flow: float = state.demand_per_second if state.battery_cells >= 1.0 or standard_sold > 0 else 0.0
+	var premium_flow: float = Formulas.demand_per_second(state, "premium") if state.premium_cells >= 1.0 or premium_sold > 0 else 0.0
+	state.sales_per_second = standard_flow + premium_flow
 
 	_update_material_market(state, delta, allow_events, report)
 	_update_energy_market(state, delta, allow_events)
@@ -133,6 +98,67 @@ func advance(state: GameState, delta: float, allow_events: bool = true) -> Dicti
 	_check_bankruptcy_rescue(state, allow_events)
 	state.notify_changed()
 	return report
+
+func _produce_automated(state: GameState, uptime: float, allow_events: bool, report: Dictionary) -> void:
+	var rate: float = Formulas.automated_throughput(state)
+	if rate <= 0.0 or uptime <= 0.0:
+		return
+	var product_id: String = state.active_product
+	var accumulated: float = float(state.production_progress.get(product_id, 0.0)) + rate * uptime
+	var completed_work: int = floori(accumulated)
+	state.production_progress[product_id] = accumulated - completed_work
+	if completed_work <= 0:
+		return
+	var material_per_cell: int = roundi(Formulas.product_material_cost(product_id))
+	var material_limit: int = floori(state.raw_materials / material_per_cell)
+	var space_limit: int = floori(Formulas.warehouse_space(state))
+	var energy_per_cell: float = Formulas.energy_cost_per_cell(state)
+	var energy_limit: int = completed_work if energy_per_cell <= 0.0 else floori(state.cash / energy_per_cell)
+	var cells_made: int = mini(completed_work, mini(material_limit, mini(space_limit, energy_limit)))
+	if cells_made <= 0:
+		if allow_events and space_limit <= 0 and state.raw_materials >= material_per_cell:
+			if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
+				state.add_event("Warehouse full. Automation is stacking cells vertically and hoping.")
+		return
+	var materials_used: int = cells_made * material_per_cell
+	var energy_cost: float = cells_made * energy_per_cell
+	state.raw_materials -= materials_used
+	if product_id == "premium":
+		state.premium_cells += cells_made
+	else:
+		state.battery_cells += cells_made
+	state.cash -= energy_cost
+	state.lifetime_cells_made += cells_made
+	state.machine_condition = maxf(0.0, state.machine_condition - cells_made * Formulas.wear_per_cell(state))
+	state.lifetime_energy_cost += energy_cost
+	report["energy_cost"] = energy_cost
+	report["cells_made"] = cells_made
+	report["materials_consumed"] = materials_used
+
+func _sell_spot_product(state: GameState, product_id: String, delta: float, report: Dictionary) -> int:
+	var demand: float = Formulas.demand_per_second(state, product_id)
+	var accumulated: float = float(state.sales_progress.get(product_id, 0.0)) + demand * delta
+	var customer_orders: int = floori(accumulated)
+	state.sales_progress[product_id] = accumulated - customer_orders
+	if customer_orders <= 0:
+		return 0
+	var inventory: int = floori(state.premium_cells if product_id == "premium" else state.battery_cells)
+	var cells_sold: int = mini(inventory, customer_orders)
+	state.lifetime_sales_lost += customer_orders - cells_sold
+	if cells_sold <= 0:
+		return 0
+	var price: float = state.premium_sale_price if product_id == "premium" else state.sale_price
+	var revenue: float = cells_sold * price
+	if product_id == "premium":
+		state.premium_cells -= cells_sold
+	else:
+		state.battery_cells -= cells_sold
+	state.cash += revenue
+	state.lifetime_cells_sold += cells_sold
+	state.lifetime_revenue += revenue
+	report["cells_sold"] = float(report["cells_sold"]) + cells_sold
+	report["revenue"] = float(report["revenue"]) + revenue
+	return cells_sold
 
 func _check_bankruptcy_rescue(state: GameState, allow_events: bool) -> void:
 	# Safety net: with no cash, materials, inventory, or automation the player
@@ -170,21 +196,22 @@ func advance_chunked(state: GameState, total_seconds: float, allow_events: bool 
 	return aggregate
 
 func manual_produce(state: GameState) -> bool:
-	var material_needed: float = state.manual_output * Formulas.product_material_cost(state.active_product)
+	var cells_in_batch: int = maxi(1, roundi(state.manual_output))
+	var material_needed: int = cells_in_batch * roundi(Formulas.product_material_cost(state.active_product))
 	if state.raw_materials < material_needed:
 		if state.event_log.is_empty() or not state.event_log[0].begins_with("Production paused"):
 			state.add_event("Production paused: materials are currently represented by an empty shelf.")
 		return false
-	if Formulas.warehouse_space(state) < state.manual_output:
+	if Formulas.warehouse_space(state) < cells_in_batch:
 		if state.event_log.is_empty() or not state.event_log[0].begins_with("Warehouse full"):
 			state.add_event("Warehouse full. The next cell would legally be furniture.")
 		return false
 	state.raw_materials -= material_needed
 	if state.active_product == "premium":
-		state.premium_cells += state.manual_output
+		state.premium_cells += cells_in_batch
 	else:
-		state.battery_cells += state.manual_output
-	state.lifetime_cells_made += state.manual_output
+		state.battery_cells += cells_in_batch
+	state.lifetime_cells_made += cells_in_batch
 	state.notify_changed()
 	return true
 
@@ -196,7 +223,7 @@ func unlock_premium_product(state: GameState) -> bool:
 	state.cash -= PREMIUM_PRODUCT_UNLOCK_COST
 	state.premium_product_unlocked = true
 	state.active_product = "premium"
-	state.add_event("Long-Life Cell design approved. It contains 50% more material and considerably more branding.")
+	state.add_event("Long-Life Cell design approved. It requires two component kits and considerably more branding.")
 	return true
 
 func select_product(state: GameState, product_id: String) -> bool:
@@ -209,14 +236,16 @@ func select_product(state: GameState, product_id: String) -> bool:
 	return true
 
 func buy_materials(state: GameState, quantity: float) -> bool:
-	var cost: float = quantity * Formulas.material_unit_cost(state)
+	var kits: int = maxi(1, roundi(quantity))
+	var cost: float = kits * Formulas.material_unit_cost(state)
 	if state.cash < cost:
 		state.add_event("Purchasing declined: Finance reports that money remains a limiting factor.")
 		return false
 	state.cash -= cost
-	state.raw_materials += quantity
-	state.lifetime_materials_bought += quantity
-	state.add_event("Purchased %s material units for $%s." % [Formulas.format_number(quantity), Formulas.format_number(cost)])
+	state.raw_materials += kits
+	state.lifetime_materials_bought += kits
+	state.lifetime_material_spend += cost
+	state.add_event("Purchased %d component kits for $%s." % [kits, Formulas.format_number(cost)])
 	return true
 
 func set_advertising_channel(state: GameState, channel_id: String, enabled: bool) -> bool:
@@ -271,6 +300,7 @@ func hire_worker(state: GameState, role: String) -> bool:
 		state.add_event("Hiring paused: the signing bonus exceeds the available money.")
 		return false
 	state.cash -= Formulas.WORKER_HIRING_FEE
+	state.lifetime_hiring_spend += Formulas.WORKER_HIRING_FEE
 	state.workers[role] = int(state.workers[role]) + 1
 	state.add_event("Hired a %s hand. Onboarding consisted of pointing at the bench." % role)
 	return true
@@ -312,7 +342,13 @@ func _update_contracts(state: GameState, delta: float, report: Dictionary) -> vo
 			state.lifetime_revenue += value
 			state.lifetime_contract_revenue += value
 			state.lifetime_contracts_completed += 1
+			var completed_tier: String = str(state.active_contract.get("tier", "Open Market"))
+			state.lifetime_contracts_by_tier[completed_tier] = int(state.lifetime_contracts_by_tier.get(completed_tier, 0)) + 1
 			state.trust = minf(state.trust + 0.01, 1.0)
+			_adjust_reputation(state, "general", 1.0)
+			_adjust_reputation(state, "delivery", 2.5)
+			var delivered_quality: float = Formulas.effective_quality(state)
+			_adjust_reputation(state, "quality", clampf((delivered_quality - 0.8) * 3.0, -1.0, 2.0))
 			report["revenue"] = float(report["revenue"]) + value
 			state.add_event("Contract fulfilled for $%s. The client says the batteries 'arrived', which Legal counts as praise." % Formulas.format_number(value))
 			state.active_contract = {}
@@ -324,6 +360,8 @@ func _update_contracts(state: GameState, delta: float, report: Dictionary) -> vo
 				state.cash -= penalty
 				state.lifetime_contracts_failed += 1
 				state.trust = maxf(state.trust - 0.06, -0.4)
+				_adjust_reputation(state, "general", -3.0)
+				_adjust_reputation(state, "delivery", -7.0)
 				state.add_event("Contract missed. Penalty paid: $%s. The client's review contains the word 'nevertheless'." % Formulas.format_number(penalty))
 				state.active_contract = {}
 
@@ -339,21 +377,37 @@ func _update_contracts(state: GameState, delta: float, report: Dictionary) -> vo
 			])
 
 func _generate_contract_offer(state: GameState) -> Dictionary:
+	var eligible_tiers: Array[Dictionary] = []
+	for tier: Dictionary in CONTRACT_TIERS:
+		if _meets_reputation_requirements(state, tier.get("requirements", {})):
+			eligible_tiers.append(tier)
+	var selected_tier: Dictionary = eligible_tiers.back()
 	var rate: float = maxf(0.3, Formulas.automated_throughput(state) + 0.4)
-	var quantity: float = ceilf(rate * rng.randf_range(50.0, 120.0))
+	var quantity: float = ceilf(rate * rng.randf_range(50.0, 120.0) * float(selected_tier["quantity_scale"]))
 	var fair: float = maxf(0.25, state.base_value * Formulas.effective_quality(state))
-	var price_per_cell: float = snappedf(fair * rng.randf_range(0.95, 1.3), 0.01)
+	var price_per_cell: float = snappedf(fair * rng.randf_range(0.95, 1.3) * float(selected_tier["price_scale"]), 0.01)
 	var duration: float = ceilf((quantity / rate) * rng.randf_range(1.4, 1.9))
 	return {
-		"buyer": CONTRACT_BUYERS.pick_random(),
+		"buyer": CONTRACT_BUYERS[rng.randi_range(0, CONTRACT_BUYERS.size() - 1)],
 		"quantity": quantity,
 		"price_per_cell": price_per_cell,
 		"duration": duration,
 		"expires_in": CONTRACT_OFFER_LIFETIME,
+		"tier": selected_tier["name"],
+		"requirements": selected_tier["requirements"].duplicate(),
 	}
+
+func next_contract_tier(state: GameState) -> Dictionary:
+	for tier: Dictionary in CONTRACT_TIERS:
+		if not _meets_reputation_requirements(state, tier.get("requirements", {})):
+			return tier
+	return {}
 
 func accept_contract(state: GameState) -> bool:
 	if state.contract_offer.is_empty() or not state.active_contract.is_empty():
+		return false
+	if not _meets_reputation_requirements(state, state.contract_offer.get("requirements", {})):
+		state.add_event("Contract blocked: Procurement rechecked the reputation spreadsheet.")
 		return false
 	var quantity: float = float(state.contract_offer.get("quantity", 0.0))
 	var price: float = float(state.contract_offer.get("price_per_cell", 0.0))
@@ -364,6 +418,7 @@ func accept_contract(state: GameState) -> bool:
 		"price_per_cell": price,
 		"value": quantity * price,
 		"time_remaining": float(state.contract_offer.get("duration", 60.0)),
+		"tier": state.contract_offer.get("tier", "Open Market"),
 	}
 	state.contract_offer = {}
 	state.add_event("Contract signed with %s. Legal has aligned the fonts." % str(state.active_contract["buyer"]))
@@ -385,6 +440,7 @@ func service_machines(state: GameState) -> bool:
 		return false
 	state.cash -= cost
 	state.machine_condition = 1.0
+	state.lifetime_maintenance_spend += cost
 	state.add_event("Machines serviced for $%s. The grinding sound has been reclassified as a memory." % Formulas.format_number(cost))
 	return true
 
@@ -399,6 +455,7 @@ func buy_upgrade(state: GameState, definition: Dictionary) -> bool:
 		state.add_event("Upgrade deferred: insufficient cash for %s." % str(definition.get("name", "upgrade")))
 		return false
 	state.cash -= cost
+	state.lifetime_upgrade_spend += cost
 	state.upgrade_levels[id] = level + 1
 	_apply_upgrade_effects(state, definition)
 	state.add_event("Approved upgrade: %s level %d." % [str(definition.get("name", "Upgrade")), level + 1])
@@ -416,6 +473,7 @@ func _apply_upgrade_effects(state: GameState, definition: Dictionary) -> void:
 	state.risk_reduction += float(effects.get("risk_reduction_add", 0.0))
 	state.recovery += float(effects.get("recovery_add", 0.0))
 	state.trust += float(effects.get("trust_add", 0.0))
+	_adjust_reputation(state, "general", float(effects.get("trust_add", 0.0)) * 50.0)
 	state.warehouse_capacity += float(effects.get("warehouse_capacity_add", 0.0))
 	state.wear_reduction += float(effects.get("wear_reduction_add", 0.0))
 	state.prep_rate += float(effects.get("prep_rate_add", 0.0))
@@ -456,6 +514,7 @@ func _update_security_events(state: GameState, delta: float, allow_events: bool,
 		state.security_event_timer -= security_event_period
 		var event_chance: float = security_base_chance + Formulas.effective_risk(state) * security_risk_chance_scale
 		if rng.randf() > event_chance:
+			_adjust_reputation(state, "security", 0.35)
 			continue
 		_trigger_security_event(state, _pick_security_event(), report)
 
@@ -483,8 +542,8 @@ func _trigger_security_event(state: GameState, event: Dictionary, report: Dictio
 			report["security_losses"] = float(report["security_losses"]) + loss
 			detail = "Response cost: $%s." % Formulas.format_number(loss)
 		"inventory":
-			var lost_cells: float = state.battery_cells * severity
-			var lost_premium_cells: float = state.premium_cells * severity
+			var lost_cells: int = 0 if state.battery_cells < 1.0 else mini(roundi(state.battery_cells), maxi(1, roundi(state.battery_cells * severity)))
+			var lost_premium_cells: int = 0 if state.premium_cells < 1.0 else mini(roundi(state.premium_cells), maxi(1, roundi(state.premium_cells * severity)))
 			state.battery_cells -= lost_cells
 			state.premium_cells -= lost_premium_cells
 			var value: float = lost_cells * state.sale_price + lost_premium_cells * state.premium_sale_price
@@ -495,4 +554,16 @@ func _trigger_security_event(state: GameState, event: Dictionary, report: Dictio
 			state.production_downtime += severity
 			detail = "Automation offline for %ds." % roundi(severity)
 	report["security_events"] = int(report["security_events"]) + 1
+	var security_damage: float = clampf(2.5 * (1.0 - state.recovery) + Formulas.effective_risk(state) * 2.0, 1.0, 4.0)
+	_adjust_reputation(state, "security", -security_damage)
+	_adjust_reputation(state, "general", -0.25)
 	state.add_event("%s %s" % [message, detail])
+
+func _meets_reputation_requirements(state: GameState, requirements: Dictionary) -> bool:
+	for category: String in requirements:
+		if float(state.reputation.get(category, 0.0)) < float(requirements[category]):
+			return false
+	return true
+
+func _adjust_reputation(state: GameState, category: String, amount: float) -> void:
+	state.reputation[category] = clampf(float(state.reputation.get(category, 50.0)) + amount, 0.0, 100.0)

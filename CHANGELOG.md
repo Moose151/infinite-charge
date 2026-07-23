@@ -4,6 +4,87 @@ Versioning scheme: `0.x` for larger updates (new systems, milestones, significan
 
 **Rule: every commit/push must update this file** — bump the version appropriately and list what changed.
 
+## 0.18 — 2026-07-23
+
+Milestone Two: Market Depth complete.
+
+- Completed an acceptance audit covering customer segments, multiple products, advertising channels, competitors, multidimensional reputation, and contract requirements.
+- Added Long-Life customer-mix and competitive-position readouts so premium market calculations are fully visible rather than operating behind the interface.
+- Made seeded contract-buyer selection deterministic for repeatable tests and balance runs.
+- Added integration coverage proving general reputation affects demand, every campaign favours its intended audience, premium demand responds to competition, and qualified contract tiers improve both order size and pricing.
+- Added `docs/MILESTONE_TWO_ACCEPTANCE.md` as the milestone acceptance record and validation checklist.
+
+## 0.17 — 2026-07-23
+
+Operations Watch.
+
+- Added a live priority strip to the Garage Floor that turns forecasts into concise operational warnings.
+- Detects imminent kit depletion, stockouts, warehouse saturation, maintenance, incident downtime, payroll strikes, and negative active-product margins.
+- Separates immediate action from near-term watch items, limits the display to the three most important constraints, and returns to a stable status automatically.
+- Uses the active colour scheme's semantic warning and success colours without generating repetitive activity-log messages.
+
+## 0.16 — 2026-07-23
+
+Operational runway estimates.
+
+- Added live component-kit runway based on the active product recipe and current automated throughput.
+- Added stockout and warehouse-fill forecasts based on total inventory, unlocked-product demand, output, and free capacity.
+- Added machine wear per minute and estimated time until the recommended 70% service threshold.
+- Covered material, inventory, capacity, and servicing estimates with headless tests.
+
+## 0.15 — 2026-07-23
+
+Visible garage-floor progression.
+
+- Added a live Garage Floor overview to Operations with assembly, prep, testing, stockroom, crew, and security stations.
+- Each station visibly changes its equipment description, levels, staffing, capacity, throughput, coverage, or controls as the corresponding game systems progress.
+- Added workshop-stage progression from One-Person Garage through Mechanised Workshop to Compact Production Floor.
+- Kept the view derived entirely from existing simulation state so old saves and offline progress update it automatically.
+
+## 0.14 — 2026-07-23
+
+Reputation and contract qualification.
+
+- Split reputation into visible general, delivery, quality, and security scores.
+- Contract success now improves delivery, general, and quality reputation; missed deadlines damage delivery and general standing, while security incidents damage security standing.
+- Added Approved Supplier and Assured Supply contract tiers with reputation requirements, larger orders, and better pricing.
+- Added an always-visible next-tier qualification readout and completion totals for each contract tier.
+- Contract acceptance rechecks requirements so a newly reported incident can invalidate a pending offer.
+- Security reputation now rises during incident-free audit periods and takes bounded, defense-sensitive damage from incidents.
+- Persisted all reputation categories and migrated old saves from the legacy trust score.
+- Restored the Unit Economics refresh function so the v0.13 interface starts cleanly and reports lifetime net cash flow.
+- Expanded the balance harness and headless suite for reputation pacing, tier history, qualification checks, and save/load.
+
+## 0.13 — 2026-07-23
+
+Core economy and unit-model rebuild.
+
+- Replaced vague raw-material units with whole component kits: Standard Cells require one kit and Long-Life Cells require two.
+- Production work and customer demand now accumulate internally but only complete, store, contract, and sell whole cells; old fractional inventory is normalised when loaded.
+- Automation now requires enough cash to pay the full energy cost before producing and can no longer receive free energy at zero cash.
+- Reframed operational readouts around cells/minute and dollars/minute, with explicit recipe costs, live purchase prices, whole-order sales language, and product margins.
+- Added a detailed cash-flow ledger for spot sales, contracts, kits, energy, wages, upgrades, hiring, maintenance, advertising, and security losses.
+- Reduced wages and campaign running costs to workshop-scale values, and revised the balance bot so manual clicking tapers as automation takes over.
+- Expanded headless coverage for whole-unit accumulation, energy affordability, recipes, margins, spending categories, and persistence.
+
+## 0.12 — 2026-07-23
+
+Colour themes and display modes.
+
+- Added Workshop, Corporate, and Solar colour schemes, each with coordinated light and dark modes.
+- Added live appearance controls to the Office tab and persisted both choices through save/load.
+- Refactored panels, cards, headings, tabs, buttons, inputs, meters, status text, and the activity feed to consume shared theme palettes instead of fixed colours.
+- Added safe fallback handling for theme values from older or manually edited saves.
+
+## 0.11 — 2026-07-23
+
+Operations-console UI overhaul.
+
+- Replaced the three dense scrolling columns with task-focused Operations, Market, Company, and Office tabs plus a persistent activity feed.
+- Grouped production, stock, pricing, advertising, crew, contracts, upgrades, settings, and statistics around the decisions players are trying to make.
+- Added a persistent cash/material/inventory summary, clearer hierarchy, a larger primary production action, and more readable labels.
+- Introduced a cohesive dark workshop-console theme with teal status accents, warm headings, stronger button states, improved spacing, and minimum-window-friendly sizing.
+
 ## 0.10 — 2026-07-23
 
 Competitor pressure — another garage has discovered commerce.

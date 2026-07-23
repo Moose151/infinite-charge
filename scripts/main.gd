@@ -49,8 +49,22 @@ var quality_bar: ProgressBar
 var condition_bar: ProgressBar
 var advertising_buttons: Dictionary = {}
 var advertising_label: Label
+var status_overview_label: Label
+var interface_root: MarginContainer
+var interface_background: ColorRect
+var theme_option: OptionButton
+var mode_option: OptionButton
+var produce_button: Button
+var material_buy_buttons: Dictionary = {}
+var finance_label: Label
+var reputation_label: Label
+var workshop_stage_label: Label
+var workshop_station_labels: Dictionary = {}
+var operations_watch_label: Label
 
 const UI_SCALES: Array[float] = [1.0]
+const THEME_IDS: Array[String] = ["workshop", "corporate", "solar"]
+const THEME_NAMES: Array[String] = ["Workshop", "Corporate", "Solar"]
 
 func _ready() -> void:
 	upgrades = _load_upgrade_data()
@@ -63,6 +77,7 @@ func _ready() -> void:
 	else:
 		state.add_event("Garage operations initiated. Desk count: one. Desk confidence: moderate.")
 	_apply_ui_scale()
+	_apply_interface_theme()
 	_refresh_ui()
 
 func _process(delta: float) -> void:
@@ -82,50 +97,122 @@ func _notification(what: int) -> void:
 		SaveManager.save_game(state)
 
 func _build_ui() -> void:
+	interface_background = ColorRect.new()
+	interface_background.color = Color("081116")
+	interface_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	interface_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(interface_background)
+
 	var root: MarginContainer = MarginContainer.new()
+	interface_root = root
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("margin_left", 18)
-	root.add_theme_constant_override("margin_top", 18)
-	root.add_theme_constant_override("margin_right", 18)
-	root.add_theme_constant_override("margin_bottom", 18)
+	root.theme = _build_interface_theme()
+	root.add_theme_constant_override("margin_left", 16)
+	root.add_theme_constant_override("margin_top", 14)
+	root.add_theme_constant_override("margin_right", 16)
+	root.add_theme_constant_override("margin_bottom", 14)
 	add_child(root)
 
 	var main: VBoxContainer = VBoxContainer.new()
 	main.add_theme_constant_override("separation", 12)
 	root.add_child(main)
 
+	var masthead: HBoxContainer = HBoxContainer.new()
+	masthead.add_theme_constant_override("separation", 12)
+	main.add_child(masthead)
+
+	var title_stack: VBoxContainer = VBoxContainer.new()
+	title_stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	masthead.add_child(title_stack)
+
 	var title: Label = Label.new()
 	var version: String = str(ProjectSettings.get_setting("application/config/version", ""))
 	title.text = "Infinite Charge" if version.is_empty() else "Infinite Charge v%s" % version
-	title.add_theme_font_size_override("font_size", 28)
-	main.add_child(title)
+	title.add_theme_font_size_override("font_size", 30)
+	title.theme_type_variation = "TitleLabel"
+	title_stack.add_child(title)
 
 	var subtitle: Label = Label.new()
-	subtitle.text = "Garage-stage operations. Cash, cells, risk, and several spreadsheets pretending this is under control."
-	subtitle.add_theme_color_override("font_color", Color(0.68, 0.74, 0.78))
-	main.add_child(subtitle)
+	subtitle.text = "GARAGE OPERATIONS CONSOLE  /  improbable energy, responsibly itemised"
+	subtitle.add_theme_font_size_override("font_size", 12)
+	subtitle.theme_type_variation = "SubtitleLabel"
+	title_stack.add_child(subtitle)
+
+	var status_badge: Label = Label.new()
+	status_badge.text = "●  SYSTEM ONLINE"
+	status_badge.theme_type_variation = "StatusLabel"
+	status_badge.add_theme_font_size_override("font_size", 13)
+	status_badge.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	masthead.add_child(status_badge)
+
+	status_overview_label = Label.new()
+	status_overview_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status_overview_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status_overview_label.theme_type_variation = "OverviewLabel"
+	masthead.add_child(status_overview_label)
 
 	var body: HBoxContainer = HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 12)
 	main.add_child(body)
 
-	var left_panel: PanelContainer = _make_panel("Workshop")
-	var middle_panel: PanelContainer = _make_panel("Company Floor")
-	var right_panel: PanelContainer = _make_panel("Growth & Log")
-	body.add_child(left_panel)
-	body.add_child(middle_panel)
-	body.add_child(right_panel)
+	var tabs: TabContainer = TabContainer.new()
+	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.custom_minimum_size = Vector2(560.0, 0.0)
+	tabs.add_theme_font_size_override("font_size", 15)
+	body.add_child(tabs)
 
-	var left: VBoxContainer = left_panel.get_node("Margin/Scroll/Content") as VBoxContainer
-	var middle: VBoxContainer = middle_panel.get_node("Margin/Scroll/Content") as VBoxContainer
-	var right: VBoxContainer = right_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var operations_panel: PanelContainer = _make_panel("OPERATIONS  ·  Build and keep the line moving")
+	operations_panel.name = "Operations"
+	tabs.add_child(operations_panel)
+	var market_panel: PanelContainer = _make_panel("MARKET  ·  Products, prices and attention")
+	market_panel.name = "Market"
+	tabs.add_child(market_panel)
+	var company_panel: PanelContainer = _make_panel("COMPANY  ·  People, contracts and growth")
+	company_panel.name = "Company"
+	tabs.add_child(company_panel)
+	var office_panel: PanelContainer = _make_panel("OFFICE  ·  Controls and company records")
+	office_panel.name = "Office"
+	tabs.add_child(office_panel)
 
-	var workshop_card: VBoxContainer = _make_card(left, "Build Cells")
-	var produce_button: Button = Button.new()
-	produce_button.text = "Assemble Cell"
-	produce_button.custom_minimum_size = Vector2(0.0, 54.0)
-	produce_button.add_theme_font_size_override("font_size", 20)
+	var activity_panel: PanelContainer = _make_panel("LIVE ACTIVITY")
+	activity_panel.custom_minimum_size = Vector2(280.0, 0.0)
+	activity_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	body.add_child(activity_panel)
+
+	var operations: VBoxContainer = operations_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var market: VBoxContainer = market_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var company: VBoxContainer = company_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var office: VBoxContainer = office_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+	var activity: VBoxContainer = activity_panel.get_node("Margin/Scroll/Content") as VBoxContainer
+
+	var workshop_view_card: VBoxContainer = _make_card(operations, "Garage Floor")
+	workshop_stage_label = _add_label(workshop_view_card)
+	workshop_stage_label.theme_type_variation = "SubtitleLabel"
+	operations_watch_label = _add_label(workshop_view_card)
+	operations_watch_label.theme_type_variation = "StatusLabel"
+	operations_watch_label.tooltip_text = "Highlights immediate operating constraints from current rates. Forecasts change as production, demand, and inventory change."
+	var workshop_grid: GridContainer = GridContainer.new()
+	workshop_grid.columns = 3
+	workshop_grid.add_theme_constant_override("h_separation", 8)
+	workshop_grid.add_theme_constant_override("v_separation", 8)
+	workshop_view_card.add_child(workshop_grid)
+	for station: Dictionary in [
+		{"id": "bench", "title": "ASSEMBLY BENCH"},
+		{"id": "prep", "title": "PREP AREA"},
+		{"id": "testing", "title": "TEST BAY"},
+		{"id": "storage", "title": "STOCKROOM"},
+		{"id": "crew", "title": "CREW CORNER"},
+		{"id": "security", "title": "SECURITY DESK"},
+	]:
+		_add_workshop_station(workshop_grid, str(station["id"]), str(station["title"]))
+
+	var workshop_card: VBoxContainer = _make_card(operations, "Quick Actions")
+	produce_button = Button.new()
+	produce_button.text = "⚡  ASSEMBLE CELL"
+	produce_button.custom_minimum_size = Vector2(0.0, 62.0)
+	produce_button.add_theme_font_size_override("font_size", 21)
 	produce_button.pressed.connect(func() -> void: simulation.manual_produce(state))
 	workshop_card.add_child(produce_button)
 
@@ -135,12 +222,13 @@ func _build_ui() -> void:
 	for quantity: float in [1.0, 10.0, 100.0]:
 		var buy_button: Button = Button.new()
 		buy_button.text = "Buy %d" % int(quantity)
-		buy_button.tooltip_text = "Buy %d raw material%s." % [int(quantity), "" if quantity == 1.0 else "s"]
+		buy_button.tooltip_text = "Buy %d component kit%s." % [int(quantity), "" if quantity == 1.0 else "s"]
 		buy_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		buy_button.pressed.connect(func() -> void: simulation.buy_materials(state, quantity))
+		material_buy_buttons[int(quantity)] = buy_button
 		buy_row.add_child(buy_button)
 
-	var products_card: VBoxContainer = _make_card(left, "Product Routing")
+	var products_card: VBoxContainer = _make_card(market, "Product Line")
 	var product_buttons: HBoxContainer = HBoxContainer.new()
 	product_buttons.add_theme_constant_override("separation", 8)
 	products_card.add_child(product_buttons)
@@ -165,7 +253,7 @@ func _build_ui() -> void:
 	products_card.add_child(premium_price_slider)
 	premium_demand_label = _add_label(products_card)
 
-	var price_card: VBoxContainer = _make_card(left, "Price Desk")
+	var price_card: VBoxContainer = _make_card(market, "Price Desk")
 	price_label = _add_label(price_card)
 	price_slider = HSlider.new()
 	price_slider.min_value = 1.0
@@ -178,7 +266,7 @@ func _build_ui() -> void:
 	market_label = _add_label(price_card)
 	competitor_label = _add_label(price_card)
 
-	var resources_card: VBoxContainer = _make_card(left, "Stockroom")
+	var resources_card: VBoxContainer = _make_card(operations, "Stockroom")
 	cash_label = _add_label(resources_card)
 	materials_label = _add_label(resources_card)
 	inventory_label = _add_label(resources_card)
@@ -187,7 +275,7 @@ func _build_ui() -> void:
 	risk_label = _add_label(resources_card)
 	risk_bar = _add_meter(resources_card)
 
-	var production_card: VBoxContainer = _make_card(middle, "Production Line")
+	var production_card: VBoxContainer = _make_card(operations, "Production Line")
 	production_label = _add_label(production_card)
 	quality_label = _add_label(production_card)
 	quality_bar = _add_meter(production_card)
@@ -197,7 +285,7 @@ func _build_ui() -> void:
 	service_button.pressed.connect(func() -> void: simulation.service_machines(state))
 	production_card.add_child(service_button)
 
-	var staff_card: VBoxContainer = _make_card(middle, "Crew")
+	var staff_card: VBoxContainer = _make_card(company, "Crew")
 	for role: String in ["prep", "assembly", "testing"]:
 		var staff_row: HBoxContainer = HBoxContainer.new()
 		staff_row.add_theme_constant_override("separation", 8)
@@ -220,7 +308,8 @@ func _build_ui() -> void:
 
 	wage_label = _add_label(staff_card)
 
-	var contracts_card: VBoxContainer = _make_card(middle, "Contracts")
+	var contracts_card: VBoxContainer = _make_card(company, "Contracts")
+	reputation_label = _add_label(contracts_card)
 	contract_label = _add_label(contracts_card)
 
 	var contract_buttons: HBoxContainer = HBoxContainer.new()
@@ -245,7 +334,7 @@ func _build_ui() -> void:
 	offline_report_label.bbcode_enabled = true
 	contracts_card.add_child(offline_report_label)
 
-	var controls_card: VBoxContainer = _make_card(middle, "Run Controls")
+	var controls_card: VBoxContainer = _make_card(office, "Run Controls")
 	pause_button = CheckButton.new()
 	pause_button.text = "Pause simulation"
 	pause_button.toggled.connect(_on_pause_toggled)
@@ -316,15 +405,47 @@ func _build_ui() -> void:
 	save_button.pressed.connect(_manual_save)
 	controls_card.add_child(save_button)
 
-	var upgrade_card: VBoxContainer = _make_card(right, "Upgrades")
-	var advertising_card: VBoxContainer = _make_card(right, "Advertising Channels")
+	var appearance_card: VBoxContainer = _make_card(office, "Appearance")
+	var theme_row: HBoxContainer = HBoxContainer.new()
+	theme_row.add_theme_constant_override("separation", 8)
+	appearance_card.add_child(theme_row)
+	var theme_label: Label = Label.new()
+	theme_label.text = "Colour scheme"
+	theme_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	theme_row.add_child(theme_label)
+	theme_option = OptionButton.new()
+	for theme_name: String in THEME_NAMES:
+		theme_option.add_item(theme_name)
+	theme_option.item_selected.connect(_on_theme_selected)
+	theme_row.add_child(theme_option)
+
+	var mode_row: HBoxContainer = HBoxContainer.new()
+	mode_row.add_theme_constant_override("separation", 8)
+	appearance_card.add_child(mode_row)
+	var mode_label: Label = Label.new()
+	mode_label.text = "Display mode"
+	mode_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mode_row.add_child(mode_label)
+	mode_option = OptionButton.new()
+	mode_option.add_item("Dark")
+	mode_option.add_item("Light")
+	mode_option.item_selected.connect(_on_mode_selected)
+	mode_row.add_child(mode_option)
+	var appearance_note: Label = _add_label(appearance_card)
+	appearance_note.text = "Changes apply immediately. The chromatic governance committee has been bypassed."
+
+	var finance_card: VBoxContainer = _make_card(office, "Unit Economics")
+	finance_label = _add_label(finance_card)
+
+	var upgrade_card: VBoxContainer = _make_card(company, "Upgrades")
+	var advertising_card: VBoxContainer = _make_card(market, "Advertising Channels")
 	advertising_label = _add_label(advertising_card)
 	for channel: Dictionary in Formulas.ADVERTISING_CHANNELS:
 		var channel_id: String = str(channel["id"])
 		var toggle: CheckButton = CheckButton.new()
-		toggle.text = "%s — $%s/s" % [
+		toggle.text = "%s — $%s/min" % [
 			str(channel["name"]),
-			Formulas.format_number(float(channel["cost_per_second"]))
+			Formulas.format_number(float(channel["cost_per_second"]) * 60.0)
 		]
 		toggle.tooltip_text = str(channel["description"])
 		toggle.toggled.connect(_on_advertising_toggled.bind(channel_id))
@@ -342,31 +463,95 @@ func _build_ui() -> void:
 		upgrade_buttons[str(definition.get("id", ""))] = button
 		upgrade_list.add_child(button)
 
-	var log_card: VBoxContainer = _make_card(right, "Company Log")
+	var log_card: VBoxContainer = _make_card(activity, "Company Log")
 	event_log_label = RichTextLabel.new()
-	event_log_label.custom_minimum_size = Vector2(0.0, 220.0)
+	event_log_label.custom_minimum_size = Vector2(0.0, 420.0)
 	event_log_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	event_log_label.bbcode_enabled = true
 	log_card.add_child(event_log_label)
 
-	var stats_card: VBoxContainer = _make_card(right, "Ledger")
+	var stats_card: VBoxContainer = _make_card(office, "Lifetime Ledger")
 	stats_label = _add_label(stats_card)
+
+func _build_interface_theme() -> Theme:
+	var palette: Dictionary = _theme_palette()
+	var interface_theme: Theme = Theme.new()
+	interface_theme.default_font_size = 14
+	interface_theme.set_type_variation("TitleLabel", "Label")
+	interface_theme.set_type_variation("SubtitleLabel", "Label")
+	interface_theme.set_type_variation("StatusLabel", "Label")
+	interface_theme.set_type_variation("OverviewLabel", "Label")
+	interface_theme.set_type_variation("PanelHeading", "Label")
+	interface_theme.set_type_variation("CardHeading", "Label")
+	interface_theme.set_type_variation("SectionHeading", "Label")
+	interface_theme.set_type_variation("CardPanel", "PanelContainer")
+	interface_theme.set_color("font_color", "Label", palette["text"])
+	interface_theme.set_color("font_color", "TitleLabel", palette["accent"])
+	interface_theme.set_color("font_color", "SubtitleLabel", palette["muted"])
+	interface_theme.set_color("font_color", "StatusLabel", palette["success"])
+	interface_theme.set_color("font_color", "OverviewLabel", palette["text_soft"])
+	interface_theme.set_color("font_color", "PanelHeading", palette["primary"])
+	interface_theme.set_color("font_color", "CardHeading", palette["accent"])
+	interface_theme.set_color("font_color", "SectionHeading", palette["primary"])
+	interface_theme.set_color("default_color", "RichTextLabel", palette["text"])
+	interface_theme.set_color("font_color", "Button", palette["button_text"])
+	interface_theme.set_color("font_hover_color", "Button", palette["button_hover_text"])
+	interface_theme.set_color("font_pressed_color", "Button", palette["pressed_text"])
+	interface_theme.set_color("font_disabled_color", "Button", palette["disabled_text"])
+	interface_theme.set_stylebox("normal", "Button", _flat_style(palette["button"], palette["border"], 1, 7))
+	interface_theme.set_stylebox("hover", "Button", _flat_style(palette["button_hover"], palette["primary"], 1, 7))
+	interface_theme.set_stylebox("pressed", "Button", _flat_style(palette["accent"], palette["accent"], 1, 7))
+	interface_theme.set_stylebox("disabled", "Button", _flat_style(palette["disabled"], palette["border_soft"], 1, 7))
+	interface_theme.set_stylebox("normal", "CheckButton", StyleBoxEmpty.new())
+	interface_theme.set_color("font_color", "CheckButton", palette["text_soft"])
+	interface_theme.set_color("font_hover_color", "CheckButton", palette["text"])
+	interface_theme.set_stylebox("panel", "PanelContainer", _flat_style(palette["surface"], palette["border"], 1, 9))
+	interface_theme.set_stylebox("panel", "CardPanel", _flat_style(palette["card"], palette["border_soft"], 1, 8))
+	interface_theme.set_stylebox("panel", "TabContainer", _flat_style(palette["surface_deep"], palette["border"], 1, 9))
+	interface_theme.set_stylebox("tab_selected", "TabBar", _flat_style(palette["tab_selected"], palette["primary"], 1, 6))
+	interface_theme.set_stylebox("tab_unselected", "TabBar", _flat_style(palette["tab"], palette["border_soft"], 1, 6))
+	interface_theme.set_color("font_selected_color", "TabBar", palette["text"])
+	interface_theme.set_color("font_unselected_color", "TabBar", palette["muted"])
+	interface_theme.set_stylebox("background", "ProgressBar", _flat_style(palette["meter_background"], palette["border_soft"], 0, 4))
+	interface_theme.set_stylebox("fill", "ProgressBar", _flat_style(palette["primary"], palette["primary"], 0, 4))
+	interface_theme.set_stylebox("normal", "LineEdit", _flat_style(palette["input"], palette["border"], 1, 6))
+	interface_theme.set_color("font_color", "LineEdit", palette["text"])
+	return interface_theme
+
+func _theme_palette() -> Dictionary:
+	var palettes: Dictionary = {
+		"workshop_dark": ["081116", "0f1c21", "0c171c", "13252b", "29474f", "223940", "d7e2e7", "b8c9ce", "91a6ac", "55b7bf", "f2cf73", "70d6a6", "18323a", "214852", "111f24", "708086", "e8f3f5", "ffffff", "081116", "1b3b43", "101f25", "0a1418", "102126"],
+		"workshop_light": ["e8f0ef", "f7fbfa", "edf5f3", "ffffff", "91b2b2", "bfd2d0", "182b30", "334d53", "5e777c", "087f8c", "9a6500", "19734d", "d8e9e8", "c1dedd", "dbe4e3", "809092", "17373d", "08282d", "ffffff", "cbe4e3", "e1ecea", "d8e5e3", "f2f8f7"],
+		"corporate_dark": ["090d1b", "11182b", "0d1324", "17213a", "33466f", "26385f", "e1e7f5", "c1cbe0", "8795b5", "6fa8ff", "ff9f5a", "65d5cf", "1b2e50", "274673", "141b2b", "71809c", "edf3ff", "ffffff", "0b1020", "203c68", "131d35", "0b1223", "111d35"],
+		"corporate_light": ["edf1fa", "ffffff", "f4f6fc", "ffffff", "9caed0", "cbd5e8", "17233d", "344563", "63718c", "286dcc", "b64d00", "087c75", "dce7f8", "c5daf5", "e0e4ec", "7a8495", "17345f", "102b52", "ffffff", "d4e2f6", "e7edf8", "dce4f2", "f6f8fd"],
+		"solar_dark": ["15120a", "211d10", "1b170c", "2b2513", "62562a", "493f20", "f2ead0", "d8cda9", "a99d78", "9fd356", "ffd45e", "72d58a", "34451e", "4d6728", "201d13", "8b8267", "f4efd9", "ffffff", "171307", "3d4d22", "26210f", "19160b", "272214"],
+		"solar_light": ["f4f0df", "fffdf5", "f8f4e6", "ffffff", "baaa6c", "ded4ad", "302b18", "554d2e", "7e7351", "557d16", "a86000", "31753e", "e7edcf", "d8e6b7", "e7e3d5", "8a826b", "30430d", "253609", "ffffff", "dce8bc", "eee9d4", "e9e3ca", "fbf8ed"],
+	}
+	var key: String = "%s_%s" % [state.ui_theme_id, "dark" if state.ui_dark_mode else "light"]
+	var values: Array = palettes.get(key, palettes["workshop_dark"])
+	var names: Array[String] = ["background", "surface", "surface_deep", "card", "border", "border_soft", "text", "text_soft", "muted", "primary", "accent", "success", "button", "button_hover", "disabled", "disabled_text", "button_text", "button_hover_text", "pressed_text", "tab_selected", "tab", "meter_background", "input"]
+	var result: Dictionary = {}
+	for index: int in range(names.size()):
+		result[names[index]] = Color(str(values[index]))
+	return result
+
+func _flat_style(fill: Color, border: Color, width: int, radius: int) -> StyleBoxFlat:
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = fill
+	style.border_color = border
+	style.set_border_width_all(width)
+	style.set_corner_radius_all(radius)
+	style.content_margin_left = 10.0
+	style.content_margin_right = 10.0
+	style.content_margin_top = 7.0
+	style.content_margin_bottom = 7.0
+	return style
 
 func _make_panel(title: String) -> PanelContainer:
 	var panel: PanelContainer = PanelContainer.new()
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.custom_minimum_size = Vector2(280.0, 0.0)
-
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color(0.085, 0.105, 0.12)
-	style.border_color = Color(0.18, 0.24, 0.28)
-	style.set_border_width_all(1)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	panel.add_theme_stylebox_override("panel", style)
+	panel.custom_minimum_size = Vector2(300.0, 0.0)
 
 	var margin: MarginContainer = MarginContainer.new()
 	margin.name = "Margin"
@@ -384,30 +569,22 @@ func _make_panel(title: String) -> PanelContainer:
 
 	var box: VBoxContainer = VBoxContainer.new()
 	box.name = "Content"
-	box.add_theme_constant_override("separation", 8)
+	box.add_theme_constant_override("separation", 10)
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(box)
 
 	var heading: Label = Label.new()
 	heading.text = title
-	heading.add_theme_font_size_override("font_size", 18)
-	heading.add_theme_color_override("font_color", Color(0.92, 0.95, 0.96))
+	heading.add_theme_font_size_override("font_size", 14)
+	heading.theme_type_variation = "PanelHeading"
 	box.add_child(heading)
 
 	return panel
 
 func _make_card(parent: Control, title: String) -> VBoxContainer:
 	var panel: PanelContainer = PanelContainer.new()
+	panel.theme_type_variation = "CardPanel"
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color(0.115, 0.14, 0.155)
-	style.border_color = Color(0.24, 0.32, 0.35)
-	style.set_border_width_all(1)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	panel.add_theme_stylebox_override("panel", style)
 	parent.add_child(panel)
 
 	var margin: MarginContainer = MarginContainer.new()
@@ -424,8 +601,8 @@ func _make_card(parent: Control, title: String) -> VBoxContainer:
 
 	var heading: Label = Label.new()
 	heading.text = title
-	heading.add_theme_font_size_override("font_size", 16)
-	heading.add_theme_color_override("font_color", Color(0.95, 0.94, 0.84))
+	heading.add_theme_font_size_override("font_size", 17)
+	heading.theme_type_variation = "CardHeading"
 	box.add_child(heading)
 	return box
 
@@ -441,16 +618,41 @@ func _add_section_heading(parent: Control, text: String) -> Label:
 	var heading: Label = Label.new()
 	heading.text = text.to_upper()
 	heading.add_theme_font_size_override("font_size", 13)
-	heading.add_theme_color_override("font_color", Color(0.45, 0.72, 0.84))
+	heading.theme_type_variation = "SectionHeading"
 	parent.add_child(heading)
 	return heading
 
 func _add_label(parent: Control) -> Label:
 	var label: Label = Label.new()
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_color_override("font_color", Color(0.82, 0.87, 0.89))
 	parent.add_child(label)
 	return label
+
+func _add_workshop_station(parent: Control, id: String, title: String) -> void:
+	var panel: PanelContainer = PanelContainer.new()
+	panel.theme_type_variation = "CardPanel"
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.custom_minimum_size = Vector2(150.0, 86.0)
+	parent.add_child(panel)
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 7)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 7)
+	panel.add_child(margin)
+	var stack: VBoxContainer = VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 4)
+	margin.add_child(stack)
+	var heading: Label = Label.new()
+	heading.text = title
+	heading.theme_type_variation = "SectionHeading"
+	heading.add_theme_font_size_override("font_size", 11)
+	stack.add_child(heading)
+	var status: Label = Label.new()
+	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	stack.add_child(status)
+	workshop_station_labels[id] = status
 
 func _on_price_changed(value: float) -> void:
 	state.sale_price = value
@@ -486,6 +688,23 @@ func _on_ui_scale_selected(index: int) -> void:
 	_apply_ui_scale()
 	state.notify_changed()
 
+func _on_theme_selected(index: int) -> void:
+	state.ui_theme_id = THEME_IDS[clampi(index, 0, THEME_IDS.size() - 1)]
+	_apply_interface_theme()
+	state.add_event("Colour scheme changed to %s. Branding has claimed responsibility." % THEME_NAMES[clampi(index, 0, THEME_NAMES.size() - 1)])
+
+func _on_mode_selected(index: int) -> void:
+	state.ui_dark_mode = index == 0
+	_apply_interface_theme()
+	state.add_event("%s mode enabled. Facilities has adjusted the imaginary lighting." % ("Dark" if state.ui_dark_mode else "Light"))
+
+func _apply_interface_theme() -> void:
+	if interface_root == null or interface_background == null:
+		return
+	var palette: Dictionary = _theme_palette()
+	interface_background.color = palette["background"]
+	interface_root.theme = _build_interface_theme()
+
 func _apply_ui_scale() -> void:
 	state.ui_scale = 1.0
 	get_window().content_scale_factor = state.ui_scale
@@ -518,17 +737,56 @@ func _refresh_ui() -> void:
 	if not is_equal_approx(offline_limit_spin.value, offline_hours):
 		offline_limit_spin.set_value_no_signal(offline_hours)
 	_sync_ui_scale_option()
+	_sync_theme_options()
 	cash_label.text = "Cash: $%s" % Formulas.format_number(state.cash)
-	materials_label.text = "Materials: %s units" % Formulas.format_number(state.raw_materials)
-	inventory_label.text = "Standard inventory: %s cells (worth $%s at current price)\nTotal warehouse use: %s / %s cells" % [
+	status_overview_label.text = "$%s CASH   ·   %s KITS   ·   %s CELLS" % [
+		Formulas.format_number(state.cash),
+		Formulas.format_number(state.raw_materials),
+		Formulas.format_number(state.battery_cells + state.premium_cells)
+	]
+	_update_workshop_view()
+	var active_recipe: int = roundi(Formulas.product_material_cost(state.active_product))
+	var manual_batch: int = roundi(state.manual_output)
+	materials_label.text = "Component kits: %d  ·  enough for %d %s cells" % [
+		floori(state.raw_materials),
+		floori(state.raw_materials / active_recipe),
+		"Long-Life" if state.active_product == "premium" else "Standard"
+	]
+	produce_button.text = "⚡  ASSEMBLE %d %s CELL%s  ·  %d KIT%s" % [
+		manual_batch,
+		"LONG-LIFE" if state.active_product == "premium" else "STANDARD",
+		"" if manual_batch == 1 else "S",
+		manual_batch * active_recipe,
+		"" if manual_batch * active_recipe == 1 else "S"
+	]
+	produce_button.disabled = state.raw_materials < manual_batch * active_recipe or Formulas.warehouse_space(state) < manual_batch
+	for quantity: int in material_buy_buttons:
+		var buy_button: Button = material_buy_buttons[quantity] as Button
+		var kit_cost: float = quantity * Formulas.material_unit_cost(state)
+		buy_button.text = "Buy %d · $%s" % [quantity, Formulas.format_number(kit_cost)]
+		buy_button.disabled = state.cash < kit_cost
+	var inventory_runway: float = Formulas.inventory_runway_seconds(state)
+	var warehouse_fill_time: float = Formulas.warehouse_fill_seconds(state)
+	var stock_flow_note: String = "balanced at current rates"
+	if is_finite(inventory_runway):
+		stock_flow_note = "stockout now" if inventory_runway <= 0.0 else "stockout in ~%s" % _format_duration(inventory_runway)
+	elif is_finite(warehouse_fill_time):
+		stock_flow_note = "warehouse full now" if warehouse_fill_time <= 0.0 else "warehouse full in ~%s" % _format_duration(warehouse_fill_time)
+	inventory_label.text = "Standard inventory: %s cells (worth $%s at current price)\nTotal warehouse use: %s / %s cells · %s" % [
 		Formulas.format_number(state.battery_cells),
 		Formulas.format_number(state.battery_cells * state.sale_price),
 		Formulas.format_number(state.battery_cells + state.premium_cells),
-		Formulas.format_number(state.warehouse_capacity)
+		Formulas.format_number(state.warehouse_capacity),
+		stock_flow_note
 	]
 	inventory_bar.max_value = maxf(1.0, state.warehouse_capacity)
 	inventory_bar.value = clampf(state.battery_cells + state.premium_cells, 0.0, inventory_bar.max_value)
-	material_price_label.text = "Material price: $%s/unit" % Formulas.format_number(Formulas.material_unit_cost(state))
+	var material_runway: float = Formulas.material_runway_seconds(state)
+	var material_runway_text: String = "no automated draw" if not is_finite(material_runway) else "~%s at current output" % _format_duration(material_runway)
+	material_price_label.text = "Kit price: $%s each · runway %s" % [
+		Formulas.format_number(Formulas.material_unit_cost(state)),
+		material_runway_text
+	]
 	var operations_risk: float = maxf(0.0, state.risk - 0.06)
 	risk_label.text = "Security risk: %d%% (base 6%% + operations %d%% - defenses %d%%)" % [
 		roundi(Formulas.effective_risk(state) * 100.0),
@@ -537,15 +795,22 @@ func _refresh_ui() -> void:
 	]
 	risk_bar.max_value = 100.0
 	risk_bar.value = Formulas.effective_risk(state) * 100.0
-	stats_label.text = "Lifetime made: %s cells\nLifetime sold: %s cells\nLifetime revenue: $%s\nMaterials bought: %s\nSecurity losses: $%s\nSales lost to stock-outs: %s cells\nEnergy paid: $%s | Wages paid: $%s\nTime operated: %s" % [
+	var spot_revenue: float = state.lifetime_revenue - state.lifetime_contract_revenue
+	stats_label.text = "OUTPUT\nMade: %s cells | Sold: %s cells | Unfilled orders: %s\n\nINCOME\nSpot sales: $%s | Contracts: $%s | Total: $%s\n\nSPENDING\nComponent kits: $%s | Energy: $%s | Wages: $%s\nUpgrades: $%s | Hiring: $%s | Maintenance: $%s\nAdvertising: $%s | Security losses: $%s\n\nTime operated: %s" % [
 		Formulas.format_number(state.lifetime_cells_made),
 		Formulas.format_number(state.lifetime_cells_sold),
-		Formulas.format_number(state.lifetime_revenue),
-		Formulas.format_number(state.lifetime_materials_bought),
-		Formulas.format_number(state.lifetime_security_losses),
 		Formulas.format_number(state.lifetime_sales_lost),
+		Formulas.format_number(spot_revenue),
+		Formulas.format_number(state.lifetime_contract_revenue),
+		Formulas.format_number(state.lifetime_revenue),
+		Formulas.format_number(state.lifetime_material_spend),
 		Formulas.format_number(state.lifetime_energy_cost),
 		Formulas.format_number(state.lifetime_wages_paid),
+		Formulas.format_number(state.lifetime_upgrade_spend),
+		Formulas.format_number(state.lifetime_hiring_spend),
+		Formulas.format_number(state.lifetime_maintenance_spend),
+		Formulas.format_number(state.lifetime_advertising_spend),
+		Formulas.format_number(state.lifetime_security_losses),
 		_format_duration(state.seconds_played)
 	]
 	price_label.text = "Sale price: $%s/cell" % Formulas.format_number(state.sale_price)
@@ -555,16 +820,18 @@ func _refresh_ui() -> void:
 	for segment: Dictionary in Formulas.customer_segment_demand(state):
 		var segment_rate: float = float(segment["demand"])
 		var segment_share: float = 0.0 if state.demand_per_second <= 0.0 else segment_rate / state.demand_per_second
-		segment_lines.append("%s %d%% (%s/s)" % [
+		segment_lines.append("%s %d%% (%s/min)" % [
 			str(segment["name"]),
 			int(round(segment_share * 100.0)),
-			Formulas.format_number(segment_rate)
+			Formulas.format_number(segment_rate * 60.0)
 		])
-	demand_label.text = "Potential demand: %s cells/sec\nCustomer mix: %s" % [
-		Formulas.format_number(state.demand_per_second),
+	var standard_order_progress: float = float(state.sales_progress.get("standard", 0.0))
+	demand_label.text = "Potential demand: %s cells/min  ·  next whole order %d%%\nCustomer mix: %s" % [
+		Formulas.format_number(state.demand_per_second * 60.0),
+		roundi(standard_order_progress * 100.0),
 		" | ".join(segment_lines)
 	]
-	sales_label.text = "Current sales: %s cells/sec" % Formulas.format_number(state.sales_per_second)
+	sales_label.text = "Fulfilled sales pace: %s cells/min" % Formulas.format_number(state.sales_per_second * 60.0)
 	if state.production_downtime > 0.0:
 		production_label.text = "Automation: OFFLINE for %ds (incident response) | Manual batch: %s" % [
 			ceili(state.production_downtime),
@@ -574,16 +841,18 @@ func _refresh_ui() -> void:
 		var staffed_prep: float = Formulas.staffed_prep_rate(state)
 		var staffed_assembly: float = Formulas.staffed_assembly_rate(state)
 		var bottleneck: String = " (prep-limited)" if staffed_prep < staffed_assembly else " (assembly-limited)"
-		production_label.text = "Stages: prep %s/s | assembly %s/s | testing %s/s\nAutomated output: %s cells/sec%s | Manual batch: %s" % [
-			Formulas.format_number(staffed_prep),
-			Formulas.format_number(staffed_assembly),
-			Formulas.format_number(Formulas.staffed_testing_rate(state)),
-			Formulas.format_number(Formulas.automated_throughput(state)),
+		var active_progress: float = float(state.production_progress.get(state.active_product, 0.0))
+		production_label.text = "Stages: prep %s/min | assembly %s/min | testing %s/min\nAutomated output: %s cells/min%s | Next cell %d%% complete | Manual batch: %d cells" % [
+			Formulas.format_number(staffed_prep * 60.0),
+			Formulas.format_number(staffed_assembly * 60.0),
+			Formulas.format_number(Formulas.staffed_testing_rate(state) * 60.0),
+			Formulas.format_number(Formulas.automated_throughput(state) * 60.0),
 			bottleneck,
-			Formulas.format_number(state.manual_output)
+			roundi(active_progress * 100.0),
+			roundi(state.manual_output)
 		]
 	else:
-		production_label.text = "Automation: none yet | Manual batch: %s" % Formulas.format_number(state.manual_output)
+		production_label.text = "Automation: none yet | Manual batch: %d cells" % roundi(state.manual_output)
 	quality_label.text = "Product quality: %.2f (design %.2f x condition %d%% x testing coverage %d%%)" % [
 		Formulas.effective_quality(state),
 		state.quality,
@@ -595,13 +864,17 @@ func _refresh_ui() -> void:
 	_update_maintenance_row()
 	_update_contracts_section()
 	_update_staff_section()
-	var estimated_margin: float = Formulas.estimated_margin_per_cell(state) - Formulas.energy_cost_per_cell(state)
+	var estimated_margin: float = Formulas.estimated_margin_per_cell(state)
 	var sell_through: float = Formulas.sell_through_per_second(state)
-	market_label.text = "Estimated margin: $%s/cell (after materials and energy at $%s/cell)\nInventory sell-through: %s cells/sec\nDemand note: households chase price; specialists tolerate price for quality." % [
+	var margin_status: String = "PROFITABLE" if estimated_margin > 0.0 else "LOSS-MAKING"
+	market_label.text = "%s at current costs  ·  contribution margin $%s/cell\nOne kit $%s + automation energy $%s | Inventory sell-through: %s cells/min\nDemand note: households chase price; specialists tolerate price for quality." % [
+		margin_status,
 		Formulas.format_number(estimated_margin),
+		Formulas.format_number(Formulas.material_unit_cost(state)),
 		Formulas.format_number(Formulas.energy_cost_per_cell(state)),
-		Formulas.format_number(sell_through)
+		Formulas.format_number(sell_through * 60.0)
 	]
+	_update_finance_section()
 	var competitor_factor: float = Formulas.competitor_demand_factor(state, "standard", 1.2)
 	var position: String = "advantage" if competitor_factor > 1.05 else ("pressure" if competitor_factor < 0.95 else "roughly even")
 	competitor_label.text = "Competitor: %s — $%s/cell, %.2f quality\nMarket position: %s (%d%% demand effect for a typical buyer)" % [
@@ -615,6 +888,131 @@ func _refresh_ui() -> void:
 	_update_event_log()
 	_update_offline_report()
 
+func _update_finance_section() -> void:
+	var income: float = state.lifetime_revenue
+	var spending: float = state.lifetime_material_spend + state.lifetime_energy_cost + state.lifetime_wages_paid + state.lifetime_upgrade_spend + state.lifetime_hiring_spend + state.lifetime_maintenance_spend + state.lifetime_advertising_spend + state.lifetime_security_losses
+	finance_label.text = "Standard margin: $%s/cell | Long-Life margin: $%s/cell\nRecorded income: $%s | Recorded spending: $%s | Net cash flow: $%s" % [
+		Formulas.format_number(Formulas.estimated_margin_per_cell(state, "standard")),
+		Formulas.format_number(Formulas.estimated_margin_per_cell(state, "premium")),
+		Formulas.format_number(income),
+		Formulas.format_number(spending),
+		Formulas.format_number(income - spending)
+	]
+
+func _update_workshop_view() -> void:
+	var automation_level: int = int(state.upgrade_levels.get("workbench_automation", 0))
+	var tool_level: int = int(state.upgrade_levels.get("better_tools", 0))
+	var prep_level: int = int(state.upgrade_levels.get("prep_station", 0))
+	var testing_level: int = int(state.upgrade_levels.get("testing_bench", 0))
+	var shelving_level: int = int(state.upgrade_levels.get("garage_shelving", 0))
+	var firewall_level: int = int(state.upgrade_levels.get("firewall", 0))
+	var backup_level: int = int(state.upgrade_levels.get("backups", 0))
+	var mfa_level: int = int(state.upgrade_levels.get("multifactor_authentication", 0))
+	var total_workers: int = Formulas.total_workers(state)
+	var stage: String = "ONE-PERSON GARAGE"
+	if automation_level >= 6 or total_workers >= 4:
+		stage = "COMPACT PRODUCTION FLOOR"
+	elif automation_level > 0 or total_workers > 0:
+		stage = "MECHANISED WORKSHOP"
+	workshop_stage_label.text = "%s  ·  equipment appears here as the company acquires increasingly official rectangles." % stage
+
+	var bench_icon: String = "⚙" if automation_level > 0 else "🔧"
+	_set_workshop_station("bench", "%s %s\nTools L%d · Automation L%d\n%s cells/min" % [
+		bench_icon,
+		"Powered line" if automation_level > 0 else "Hand assembly",
+		tool_level,
+		automation_level,
+		Formulas.format_number(Formulas.staffed_assembly_rate(state) * 60.0)
+	])
+	_set_workshop_station("prep", "%s\nStation L%d · %d staff\n%s cells/min" % [
+		"▣ Sorting station" if prep_level > 0 else "□ Folding table",
+		prep_level,
+		int(state.workers.get("prep", 0)),
+		Formulas.format_number(Formulas.staffed_prep_rate(state) * 60.0)
+	])
+	_set_workshop_station("testing", "%s\nBench L%d · %d staff\n%d%% coverage" % [
+		"✓ Instrumented" if testing_level > 0 else "? Visual checks",
+		testing_level,
+		int(state.workers.get("testing", 0)),
+		roundi(Formulas.testing_coverage(state) * 100.0)
+	])
+	_set_workshop_station("storage", "%s\nShelving L%d\n%d / %d spaces used" % [
+		"▥ Racked storage" if shelving_level > 0 else "▤ Floor boxes",
+		shelving_level,
+		roundi(state.battery_cells + state.premium_cells),
+		roundi(state.warehouse_capacity)
+	])
+	_set_workshop_station("crew", "%s\n%d on payroll\n%s" % [
+		"♟ Staffed" if total_workers > 0 else "○ Founder only",
+		total_workers,
+		"STRIKE IN PROGRESS" if state.staff_striking else "Org chart operational"
+	])
+	var security_controls: Array[String] = []
+	if firewall_level > 0:
+		security_controls.append("Firewall L%d" % firewall_level)
+	if backup_level > 0:
+		security_controls.append("Backups L%d" % backup_level)
+	if mfa_level > 0:
+		security_controls.append("MFA L%d" % mfa_level)
+	if security_controls.is_empty():
+		security_controls.append("Unlocked laptop")
+	_set_workshop_station("security", "%s\n%s\nRisk %d%%" % [
+		"◆ Controls online" if firewall_level + backup_level + mfa_level > 0 else "◇ Informal security",
+		" · ".join(security_controls),
+		roundi(Formulas.effective_risk(state) * 100.0)
+	])
+	_update_operations_watch()
+
+func _set_workshop_station(id: String, text: String) -> void:
+	var label: Label = workshop_station_labels.get(id) as Label
+	if label != null:
+		label.text = text
+
+func _update_operations_watch() -> void:
+	var critical: Array[String] = []
+	var warnings: Array[String] = []
+	if state.production_downtime > 0.0:
+		critical.append("automation offline %s" % _format_duration(state.production_downtime))
+	if state.staff_striking:
+		critical.append("payroll strike")
+	var material_runway: float = Formulas.material_runway_seconds(state)
+	if is_finite(material_runway):
+		if material_runway <= 60.0:
+			critical.append("kits empty in %s" % _format_duration(material_runway))
+		elif material_runway <= 180.0:
+			warnings.append("kit runway %s" % _format_duration(material_runway))
+	var inventory_runway: float = Formulas.inventory_runway_seconds(state)
+	if is_finite(inventory_runway):
+		if inventory_runway <= 30.0:
+			critical.append("stockout %s" % ("now" if inventory_runway <= 0.0 else "in %s" % _format_duration(inventory_runway)))
+		elif inventory_runway <= 120.0:
+			warnings.append("stock runway %s" % _format_duration(inventory_runway))
+	var fill_time: float = Formulas.warehouse_fill_seconds(state)
+	if is_finite(fill_time):
+		if fill_time <= 30.0:
+			critical.append("warehouse %s" % ("full" if fill_time <= 0.0 else "fills in %s" % _format_duration(fill_time)))
+		elif fill_time <= 120.0:
+			warnings.append("warehouse fills in %s" % _format_duration(fill_time))
+	if state.production_per_second > 0.0:
+		var service_due: float = Formulas.service_due_seconds(state)
+		if service_due <= 0.0:
+			critical.append("service overdue")
+		elif service_due <= 120.0:
+			warnings.append("service due in %s" % _format_duration(service_due))
+	if Formulas.estimated_margin_per_cell(state, state.active_product) <= 0.0:
+		critical.append("%s margin negative" % ("Long-Life" if state.active_product == "premium" else "Standard"))
+
+	var palette: Dictionary = _theme_palette()
+	if not critical.is_empty():
+		operations_watch_label.text = "● ACTION REQUIRED  ·  %s" % "  ·  ".join(critical.slice(0, 3))
+		operations_watch_label.add_theme_color_override("font_color", palette["accent"])
+	elif not warnings.is_empty():
+		operations_watch_label.text = "▲ WATCH  ·  %s" % "  ·  ".join(warnings.slice(0, 3))
+		operations_watch_label.add_theme_color_override("font_color", palette["accent"])
+	else:
+		operations_watch_label.text = "● OPERATIONS STABLE  ·  no immediate constraints at current rates"
+		operations_watch_label.add_theme_color_override("font_color", palette["success"])
+
 func _update_advertising_section() -> void:
 	for channel_id: String in advertising_buttons:
 		var toggle: CheckButton = advertising_buttons[channel_id] as CheckButton
@@ -622,8 +1020,8 @@ func _update_advertising_section() -> void:
 		if toggle.button_pressed != enabled:
 			toggle.set_pressed_no_signal(enabled)
 	var cost: float = Formulas.advertising_cost_per_second(state)
-	advertising_label.text = "Campaign spend: $%s/s | Lifetime: $%s\nEach channel reaches a different customer mix." % [
-		Formulas.format_number(cost),
+	advertising_label.text = "Campaign spend: $%s/min | Lifetime: $%s\nEach channel reaches a different customer mix." % [
+		Formulas.format_number(cost * 60.0),
 		Formulas.format_number(state.lifetime_advertising_spend)
 	]
 
@@ -640,7 +1038,7 @@ func _update_products_section() -> void:
 	premium_price_slider.visible = unlocked
 	premium_demand_label.visible = unlocked
 	if not unlocked:
-		premium_inventory_label.text = "Long-Life Cells use 1.5 materials each and appeal strongly to specialist buyers."
+		premium_inventory_label.text = "Long-Life Cells use 2 component kits each and appeal strongly to specialist buyers."
 		return
 	var premium_demand: float = Formulas.demand_per_second(state, "premium")
 	premium_inventory_label.text = "Long-Life inventory: %s cells (worth $%s) | Routing: %s" % [
@@ -649,7 +1047,20 @@ func _update_products_section() -> void:
 		"Long-Life" if state.active_product == "premium" else "Standard"
 	]
 	premium_price_label.text = "Long-Life price: $%s/cell" % Formulas.format_number(state.premium_sale_price)
-	premium_demand_label.text = "Long-Life demand: %s cells/sec | 1.5 materials/cell | +25%% quality" % Formulas.format_number(premium_demand)
+	var premium_segments: Array[String] = []
+	for segment: Dictionary in Formulas.customer_segment_demand(state, "premium"):
+		var segment_rate: float = float(segment["demand"])
+		var segment_share: float = 0.0 if premium_demand <= 0.0 else segment_rate / premium_demand
+		premium_segments.append("%s %d%%" % [str(segment["name"]), roundi(segment_share * 100.0)])
+	var premium_competitor_factor: float = Formulas.competitor_demand_factor(state, "premium", 1.2)
+	var premium_position: String = "advantage" if premium_competitor_factor > 1.05 else ("pressure" if premium_competitor_factor < 0.95 else "roughly even")
+	premium_demand_label.text = "Long-Life demand: %s cells/min | Margin $%s/cell | 2 kits/cell | +25%% quality\nCustomer mix: %s\nCompetitor position: %s (%d%% demand effect)" % [
+		Formulas.format_number(premium_demand * 60.0),
+		Formulas.format_number(Formulas.estimated_margin_per_cell(state, "premium")),
+		" | ".join(premium_segments),
+		premium_position,
+		roundi((premium_competitor_factor - 1.0) * 100.0)
+	]
 
 func _update_maintenance_row() -> void:
 	if state.production_per_second <= 0.0:
@@ -660,9 +1071,14 @@ func _update_maintenance_row() -> void:
 	condition_label.visible = true
 	condition_bar.visible = true
 	service_button.visible = true
-	condition_label.text = "Machine condition: %d%% (efficiency %d%%)" % [
+	var wear_per_minute: float = Formulas.automated_throughput(state) * Formulas.wear_per_cell(state) * 100.0 * 60.0
+	var service_due: float = Formulas.service_due_seconds(state)
+	var service_due_text: String = "service due now" if service_due <= 0.0 else "service threshold in ~%s" % _format_duration(service_due)
+	condition_label.text = "Machine condition: %d%% (efficiency %d%%) · wear %.2f%%/min · %s" % [
 		roundi(state.machine_condition * 100.0),
-		roundi(Formulas.machine_efficiency(state) * 100.0)
+		roundi(Formulas.machine_efficiency(state) * 100.0),
+		wear_per_minute,
+		service_due_text
 	]
 	condition_bar.max_value = 100.0
 	condition_bar.value = state.machine_condition * 100.0
@@ -678,30 +1094,47 @@ func _update_staff_section() -> void:
 	for role: String in staff_labels:
 		var count: int = int(state.workers.get(role, 0))
 		var label: Label = staff_labels[role] as Label
-		label.text = "%s: %d/%d (+%s/s each)" % [
+		label.text = "%s: %d/%d (+%s cells/min each)" % [
 			role.capitalize(),
 			count,
 			Formulas.MAX_WORKERS_PER_ROLE,
-			Formulas.format_number(Formulas.WORKER_STAGE_RATE)
+			Formulas.format_number(Formulas.WORKER_STAGE_RATE * 60.0)
 		]
 	var total: int = Formulas.total_workers(state)
 	if total == 0:
 		wage_label.text = "No staff. The org chart is a dot."
 	elif state.staff_striking:
-		wage_label.text = "Wages: UNPAID - staff are on strike until payroll clears ($%s/s owed)." % Formulas.format_number(total * Formulas.WORKER_WAGE_PER_SECOND)
+		wage_label.text = "Wages: UNPAID - staff are on strike until payroll clears ($%s/min owed)." % Formulas.format_number(total * Formulas.WORKER_WAGE_PER_SECOND * 60.0)
 	else:
-		wage_label.text = "Wages: $%s/s | Hiring fee: $%s" % [
-			Formulas.format_number(total * Formulas.WORKER_WAGE_PER_SECOND),
+		wage_label.text = "Wages: $%s/min | Hiring fee: $%s" % [
+			Formulas.format_number(total * Formulas.WORKER_WAGE_PER_SECOND * 60.0),
 			Formulas.format_number(Formulas.WORKER_HIRING_FEE)
 		]
 
 func _update_contracts_section() -> void:
+	reputation_label.text = "REPUTATION  General %d  ·  Delivery %d  ·  Quality %d  ·  Security %d" % [
+		roundi(float(state.reputation.get("general", 50.0))),
+		roundi(float(state.reputation.get("delivery", 50.0))),
+		roundi(float(state.reputation.get("quality", 50.0))),
+		roundi(float(state.reputation.get("security", 50.0)))
+	]
+	var next_tier: Dictionary = simulation.next_contract_tier(state)
+	if next_tier.is_empty():
+		reputation_label.text += "\nAll contract tiers qualified. Procurement has run out of velvet ropes."
+	else:
+		var gaps: Array[String] = []
+		for category: String in next_tier.get("requirements", {}):
+			var required: int = roundi(float(next_tier["requirements"][category]))
+			var current: int = roundi(float(state.reputation.get(category, 0.0)))
+			gaps.append("%s %d/%d" % [category.capitalize(), current, required])
+		reputation_label.text += "\nNext: %s — %s" % [str(next_tier["name"]), ", ".join(gaps)]
 	var has_offer: bool = not state.contract_offer.is_empty()
 	accept_contract_button.visible = has_offer
 	decline_contract_button.visible = has_offer
 	if not state.active_contract.is_empty():
 		var contract: Dictionary = state.active_contract
-		contract_label.text = "Active: %s cells for %s ($%s each)\nDelivered: %s / %s | Time left: %s" % [
+		contract_label.text = "Active %s: %s cells for %s ($%s each)\nDelivered: %s / %s | Time left: %s" % [
+			str(contract.get("tier", "Open Market")),
 			Formulas.format_number(float(contract.get("quantity", 0.0))),
 			str(contract.get("buyer", "a client")),
 			Formulas.format_number(float(contract.get("price_per_cell", 0.0))),
@@ -711,19 +1144,28 @@ func _update_contracts_section() -> void:
 		]
 	elif has_offer:
 		var offer: Dictionary = state.contract_offer
-		contract_label.text = "Offer from %s:\n%s cells at $%s each (total $%s)\nDeadline once signed: %s | Offer expires: %s" % [
+		var requirement_parts: Array[String] = []
+		for category: String in offer.get("requirements", {}):
+			requirement_parts.append("%s %d" % [category.capitalize(), roundi(float(offer["requirements"][category]))])
+		var requirement_text: String = "None" if requirement_parts.is_empty() else ", ".join(requirement_parts)
+		contract_label.text = "%s offer from %s:\n%s cells at $%s each (total $%s)\nRequired reputation: %s\nDeadline once signed: %s | Offer expires: %s" % [
+			str(offer.get("tier", "Open Market")),
 			str(offer.get("buyer", "a client")),
 			Formulas.format_number(float(offer.get("quantity", 0.0))),
 			Formulas.format_number(float(offer.get("price_per_cell", 0.0))),
 			Formulas.format_number(float(offer.get("quantity", 0.0)) * float(offer.get("price_per_cell", 0.0))),
+			requirement_text,
 			_format_duration(float(offer.get("duration", 0.0))),
 			_format_duration(float(offer.get("expires_in", 0.0)))
 		]
 	else:
-		contract_label.text = "No offers right now. Completed: %d | Missed: %d | Contract revenue: $%s" % [
+		contract_label.text = "No offers right now. Completed: %d | Missed: %d | Contract revenue: $%s\nCompleted by tier: Open %d · Approved %d · Assured %d" % [
 			state.lifetime_contracts_completed,
 			state.lifetime_contracts_failed,
-			Formulas.format_number(state.lifetime_contract_revenue)
+			Formulas.format_number(state.lifetime_contract_revenue),
+			int(state.lifetime_contracts_by_tier.get("Open Market", 0)),
+			int(state.lifetime_contracts_by_tier.get("Approved Supplier", 0)),
+			int(state.lifetime_contracts_by_tier.get("Assured Supply", 0))
 		]
 
 func _sync_ui_scale_option() -> void:
@@ -733,6 +1175,16 @@ func _sync_ui_scale_option() -> void:
 			selected_index = index
 	if ui_scale_option.selected != selected_index:
 		ui_scale_option.select(selected_index)
+
+func _sync_theme_options() -> void:
+	if theme_option == null or mode_option == null:
+		return
+	var theme_index: int = maxi(0, THEME_IDS.find(state.ui_theme_id))
+	if theme_option.selected != theme_index:
+		theme_option.select(theme_index)
+	var mode_index: int = 0 if state.ui_dark_mode else 1
+	if mode_option.selected != mode_index:
+		mode_option.select(mode_index)
 
 func _sync_speed_option() -> void:
 	var speeds: Array[float] = [0.5, 1.0, 2.0, 5.0]
@@ -767,7 +1219,7 @@ func _update_upgrade_buttons() -> void:
 func _update_event_log() -> void:
 	var lines: Array[String] = []
 	for message: String in state.event_log.slice(0, 12):
-		lines.append("[color=#d6dde3]%s[/color]" % message)
+		lines.append(message)
 	event_log_label.text = "\n".join(lines)
 
 func _update_offline_report() -> void:

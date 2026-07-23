@@ -60,6 +60,11 @@ func _test_formulas() -> void:
 	state.material_price = 2.0
 	state.material_discount = 0.25
 	_check(is_equal_approx(Formulas.material_unit_cost(state), 1.5), "material discount applies")
+	state.sale_price = 4.0
+	state.energy_price = 0.1
+	_check(is_equal_approx(Formulas.estimated_margin_per_cell(state), 2.4), "standard margin includes kit and energy")
+	state.premium_sale_price = 8.0
+	_check(is_equal_approx(Formulas.estimated_margin_per_cell(state, "premium"), 4.9), "premium margin includes two kits and energy")
 	state.material_discount = 10.0
 	_check(Formulas.material_unit_cost(state) >= 0.05, "material cost floors above zero")
 
@@ -100,6 +105,12 @@ func _test_customer_segments() -> void:
 	var specialist_quality_gain: float = _segment_demand(high_quality, "specialists") / _segment_demand(baseline, "specialists")
 	_check(specialist_quality_gain > household_quality_gain, "specialists respond more strongly to quality")
 
+	state.quality = 1.0
+	state.reputation["general"] = 80.0
+	var reputable_demand: float = Formulas.demand_per_second(state)
+	state.reputation["general"] = 20.0
+	_check(reputable_demand > Formulas.demand_per_second(state), "general reputation affects customer demand")
+
 func _test_multiple_products() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
@@ -110,7 +121,7 @@ func _test_multiple_products() -> void:
 	_check(is_equal_approx(state.cash, 0.0), "premium design charges unlock cost")
 
 	state.manual_output = 2.0
-	state.raw_materials = 3.0
+	state.raw_materials = 4.0
 	_check(simulation.manual_produce(state), "premium cells can be produced manually")
 	_check(is_equal_approx(state.premium_cells, 2.0), "premium stock is separate")
 	_check(is_equal_approx(state.raw_materials, 0.0), "premium cells consume extra material")
@@ -126,6 +137,12 @@ func _test_multiple_products() -> void:
 	state.premium_sale_price = 8.0
 	var premium_segments: Array[Dictionary] = Formulas.customer_segment_demand(state, "premium")
 	_check(_segment_demand(premium_segments, "specialists") > _segment_demand(premium_segments, "households"), "premium cells skew toward specialists")
+	state.competitor_price = 2.5
+	state.competitor_quality = 1.3
+	var premium_under_pressure: float = Formulas.demand_per_second(state, "premium")
+	state.competitor_price = 8.0
+	state.competitor_quality = 0.8
+	_check(Formulas.demand_per_second(state, "premium") > premium_under_pressure, "premium demand responds to competitor value")
 	_check(simulation.select_product(state, "standard"), "production can switch back to standard")
 
 func _test_advertising_channels() -> void:
@@ -137,16 +154,32 @@ func _test_advertising_channels() -> void:
 	var household_gain: float = _segment_demand(advertised, "households") / _segment_demand(baseline, "households")
 	var specialist_gain: float = _segment_demand(advertised, "specialists") / _segment_demand(baseline, "specialists")
 	_check(household_gain > specialist_gain, "flyers favour household demand")
-	_check(is_equal_approx(Formulas.advertising_cost_per_second(state), 0.18), "active channel reports running cost")
+	_check(is_equal_approx(Formulas.advertising_cost_per_second(state), 0.03), "active channel reports running cost")
 
 	state.cash = 10.0
 	var report: Dictionary = simulation.advance(state, 10.0, false)
-	_check(is_equal_approx(float(report["advertising_cost"]), 1.8), "advertising spend charged during advance")
-	_check(is_equal_approx(state.lifetime_advertising_spend, 1.8), "advertising spend tracked")
+	_check(is_equal_approx(float(report["advertising_cost"]), 0.3), "advertising spend charged during advance")
+	_check(is_equal_approx(state.lifetime_advertising_spend, 0.3), "advertising spend tracked")
 	state.cash = 0.0
 	simulation.advance(state, 1.0, false)
 	_check(not bool(state.advertising_channels["neighbourhood_flyers"]), "unaffordable campaigns pause")
 	_check(not simulation.set_advertising_channel(state, "not_a_channel", true), "unknown advertising channel rejected")
+
+	var business_state: GameState = GameState.new()
+	var business_baseline: Array[Dictionary] = Formulas.customer_segment_demand(business_state)
+	simulation.set_advertising_channel(business_state, "business_directory", true)
+	var business_advertised: Array[Dictionary] = Formulas.customer_segment_demand(business_state)
+	var business_gain: float = _segment_demand(business_advertised, "businesses") / _segment_demand(business_baseline, "businesses")
+	var business_household_gain: float = _segment_demand(business_advertised, "households") / _segment_demand(business_baseline, "households")
+	_check(business_gain > business_household_gain, "business directory favours local businesses")
+
+	var specialist_state: GameState = GameState.new()
+	var specialist_baseline: Array[Dictionary] = Formulas.customer_segment_demand(specialist_state)
+	simulation.set_advertising_channel(specialist_state, "specialist_newsletter", true)
+	var specialist_advertised: Array[Dictionary] = Formulas.customer_segment_demand(specialist_state)
+	var newsletter_gain: float = _segment_demand(specialist_advertised, "specialists") / _segment_demand(specialist_baseline, "specialists")
+	var newsletter_household_gain: float = _segment_demand(specialist_advertised, "households") / _segment_demand(specialist_baseline, "households")
+	_check(newsletter_gain > newsletter_household_gain, "specialist newsletter favours specialist buyers")
 
 func _test_competitors() -> void:
 	var state: GameState = GameState.new()
@@ -190,6 +223,7 @@ func _test_material_buying() -> void:
 	_check(simulation.buy_materials(state, 10.0), "buying materials succeeds with cash")
 	_check(is_equal_approx(state.cash, 80.0), "buying materials deducts cash")
 	_check(is_equal_approx(state.raw_materials, 10.0), "buying materials adds stock")
+	_check(is_equal_approx(state.lifetime_material_spend, 20.0), "component-kit spend tracked")
 	state.cash = 1.0
 	_check(not simulation.buy_materials(state, 10.0), "buying materials fails when broke")
 	_check(is_equal_approx(state.raw_materials, 10.0), "failed purchase leaves stock unchanged")
@@ -208,6 +242,7 @@ func _test_upgrades() -> void:
 	state.cash = 200.0
 	_check(simulation.buy_upgrade(state, definition), "upgrade purchase succeeds")
 	_check(is_equal_approx(state.cash, 150.0), "upgrade deducts cost")
+	_check(is_equal_approx(state.lifetime_upgrade_spend, 50.0), "upgrade spend tracked")
 	_check(is_equal_approx(state.production_per_second, 0.5), "upgrade applies production effect")
 	_check(is_equal_approx(state.risk, 0.07), "upgrade applies risk effect")
 	_check(simulation.buy_upgrade(state, definition), "second level purchase succeeds")
@@ -220,16 +255,16 @@ func _test_upgrades() -> void:
 func _test_advance() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
-	state.cash = 0.0
+	state.cash = 100.0
 	state.raw_materials = 100.0
 	state.battery_cells = 30.0
 	state.warehouse_capacity = 200.0
 	state.production_per_second = 2.0
 	state.prep_rate = 100.0
 	state.sale_price = 4.0
-	var report: Dictionary = simulation.advance(state, 1.0, false)
+	var report: Dictionary = simulation.advance(state, 2.0, false)
 	_check(float(report["cells_made"]) > 0.0, "advance produces automatically")
-	_check(is_equal_approx(state.raw_materials, 98.0), "advance consumes materials")
+	_check(is_equal_approx(state.raw_materials, 96.0), "advance consumes whole component kits")
 	_check(float(report["cells_sold"]) > 0.0, "advance sells cells")
 	_check(state.cash > 0.0, "advance earns revenue")
 	_check(is_equal_approx(float(report["revenue"]), float(report["cells_sold"]) * 4.0), "revenue matches sales")
@@ -243,6 +278,7 @@ func _test_warehouse_capacity() -> void:
 	state.production_per_second = 10.0
 	state.prep_rate = 100.0
 	state.awareness = 0.0
+	state.cash = 100.0
 	simulation.advance(state, 1.0, false)
 	_check(is_equal_approx(state.battery_cells, 60.0), "automation stops at warehouse capacity")
 	_check(is_equal_approx(state.raw_materials, 99.0), "materials not consumed past capacity")
@@ -265,9 +301,15 @@ func _test_production_stages() -> void:
 	var report: Dictionary = simulation.advance(state, 1.0, false)
 	_check(is_equal_approx(float(report["cells_made"]), 1.0), "prep stage bottlenecks assembly")
 
-	state.prep_rate = 10.0
-	report = simulation.advance(state, 1.0, false)
-	_check(float(report["cells_made"]) > 4.0, "assembly limits when prep is fast")
+	var assembly_limited: GameState = GameState.new()
+	assembly_limited.raw_materials = 100.0
+	assembly_limited.warehouse_capacity = 1000.0
+	assembly_limited.production_per_second = 5.0
+	assembly_limited.prep_rate = 10.0
+	assembly_limited.awareness = 0.0
+	assembly_limited.cash = 100.0
+	report = simulation.advance(assembly_limited, 1.0, false)
+	_check(is_equal_approx(float(report["cells_made"]), 5.0), "assembly limits when prep is fast")
 
 	var upgraded: GameState = GameState.new()
 	simulation.buy_upgrade(upgraded, {"id": "prep", "base_cost": 0.0, "max_level": 1, "effects": {"prep_rate_add": 0.45, "testing_rate_add": 0.45}})
@@ -309,6 +351,7 @@ func _test_maintenance() -> void:
 	state.production_per_second = 10.0
 	state.prep_rate = 100.0
 	state.awareness = 0.0
+	state.cash = 1000.0
 	simulation.advance(state, 60.0, false)
 	_check(state.machine_condition < 1.0, "automated production wears machines")
 
@@ -320,6 +363,7 @@ func _test_maintenance() -> void:
 	_check(simulation.service_machines(state), "servicing succeeds with cash")
 	_check(is_equal_approx(state.machine_condition, 1.0), "servicing restores condition")
 	_check(state.cash < 1000.0, "servicing costs cash")
+	_check(state.lifetime_maintenance_spend > 0.0, "maintenance spend tracked")
 	_check(not simulation.service_machines(state), "servicing refused when not needed")
 
 	state.machine_condition = 0.5
@@ -330,6 +374,24 @@ func _test_maintenance() -> void:
 	var reduced_wear: float = Formulas.wear_per_cell(state)
 	state.wear_reduction = 0.0
 	_check(reduced_wear < Formulas.wear_per_cell(state), "wear reduction lowers wear")
+
+	var estimates: GameState = GameState.new()
+	estimates.production_per_second = 2.0
+	estimates.prep_rate = 2.0
+	estimates.raw_materials = 20.0
+	estimates.awareness = 0.0
+	estimates.machine_condition = 1.0
+	_check(is_equal_approx(Formulas.material_runway_seconds(estimates), 10.0), "material runway uses current kit draw")
+	_check(is_equal_approx(Formulas.warehouse_fill_seconds(estimates), 30.0), "warehouse fill estimate uses net production")
+	_check(is_equal_approx(Formulas.service_due_seconds(estimates), 600.0), "service estimate uses throughput and wear")
+	estimates.battery_cells = estimates.warehouse_capacity
+	_check(is_equal_approx(Formulas.warehouse_fill_seconds(estimates), 0.0), "full warehouse reports immediate saturation")
+	estimates.battery_cells = 10.0
+	estimates.production_per_second = 0.0
+	estimates.awareness = 1.0
+	_check(is_finite(Formulas.inventory_runway_seconds(estimates)), "inventory runway appears when demand exceeds output")
+	estimates.battery_cells = 0.0
+	_check(is_equal_approx(Formulas.inventory_runway_seconds(estimates), 0.0), "empty inventory reports immediate stockout")
 
 func _test_lost_sales() -> void:
 	var state: GameState = GameState.new()
@@ -385,6 +447,16 @@ func _test_energy() -> void:
 	state.energy_discount = 0.5
 	_check(is_equal_approx(Formulas.energy_cost_per_cell(state), 0.05), "energy discount lowers cost per cell")
 
+	var broke: GameState = GameState.new()
+	broke.cash = 0.0
+	broke.raw_materials = 100.0
+	broke.production_per_second = 2.0
+	broke.prep_rate = 100.0
+	broke.awareness = 0.0
+	report = simulation.advance(broke, 1.0, false)
+	_check(is_equal_approx(float(report["cells_made"]), 0.0), "automation cannot produce without energy money")
+	_check(is_equal_approx(broke.raw_materials, 100.0), "unfunded automation does not consume kits")
+
 func _test_employees() -> void:
 	var state: GameState = GameState.new()
 	var simulation: Simulation = _make_sim()
@@ -395,6 +467,7 @@ func _test_employees() -> void:
 
 	_check(simulation.hire_worker(state, "prep"), "hiring succeeds with cash")
 	_check(is_equal_approx(state.cash, 850.0), "hiring fee charged")
+	_check(is_equal_approx(state.lifetime_hiring_spend, 150.0), "hiring spend tracked")
 	simulation.hire_worker(state, "prep")
 	_check(not simulation.hire_worker(state, "prep"), "role capped at max workers")
 	_check(is_equal_approx(Formulas.staffed_prep_rate(state), 1.6), "prep workers raise prep rate")
@@ -402,8 +475,10 @@ func _test_employees() -> void:
 	simulation.hire_worker(state, "assembly")
 	_check(is_equal_approx(Formulas.staffed_assembly_rate(state), 0.4), "assembly worker produces without machines")
 	var report: Dictionary = simulation.advance(state, 1.0, false)
-	_check(is_equal_approx(float(report["cells_made"]), 0.4), "staffed assembly produces cells")
-	_check(is_equal_approx(state.lifetime_wages_paid, 1.05), "wages paid per worker per second")
+	_check(is_equal_approx(float(report["cells_made"]), 0.0), "partial staff production waits for a complete cell")
+	report = simulation.advance(state, 2.0, false)
+	_check(is_equal_approx(float(report["cells_made"]), 1.0), "staffed assembly completes whole cells over time")
+	_check(is_equal_approx(state.lifetime_wages_paid, 0.54), "wages paid continuously while cells accumulate")
 
 	state.cash = 0.0
 	simulation.advance(state, 1.0, false)
@@ -442,11 +517,14 @@ func _test_contracts() -> void:
 
 	state.battery_cells = 6.0
 	var trust_before: float = state.trust
+	var delivery_before: float = float(state.reputation["delivery"])
 	simulation.advance(state, 1.0, true)
 	_check(state.active_contract.is_empty(), "contract completes when fulfilled")
 	_check(state.cash >= 50.0, "completion pays full value")
 	_check(state.trust > trust_before, "completion builds trust")
+	_check(float(state.reputation["delivery"]) > delivery_before, "completion builds delivery reputation")
 	_check(state.lifetime_contracts_completed == 1, "completion counted")
+	_check(int(state.lifetime_contracts_by_tier["Open Market"]) == 1, "completion counted by contract tier")
 
 	state.contract_offer = {"buyer": "a test client", "quantity": 10.0, "price_per_cell": 5.0, "duration": 5.0, "expires_in": 60.0}
 	simulation.accept_contract(state)
@@ -457,7 +535,28 @@ func _test_contracts() -> void:
 	_check(state.active_contract.is_empty(), "contract fails past deadline")
 	_check(state.cash < 100.0, "failure charges penalty")
 	_check(state.trust < trust_before, "failure costs trust")
+	_check(float(state.reputation["delivery"]) < delivery_before, "failure costs delivery reputation")
 	_check(state.lifetime_contracts_failed == 1, "failure counted")
+
+	state.reputation = {"general": 54.0, "delivery": 70.0, "quality": 70.0, "security": 70.0}
+	_check(str(simulation.next_contract_tier(state).get("name", "")) == "Approved Supplier", "next contract tier identifies first unmet qualification")
+	var open_offer: Dictionary = simulation._generate_contract_offer(state)
+	_check(str(open_offer.get("tier", "")) == "Open Market", "contract tier respects general reputation requirement")
+	state.reputation["general"] = 70.0
+	_check(simulation.next_contract_tier(state).is_empty(), "all contract tiers qualify at high reputation")
+	var assured_offer: Dictionary = simulation._generate_contract_offer(state)
+	_check(str(assured_offer.get("tier", "")) == "Assured Supply", "high reputation unlocks assured contracts")
+	var open_state: GameState = GameState.new()
+	simulation.rng.seed = 99
+	var baseline_offer: Dictionary = simulation._generate_contract_offer(open_state)
+	simulation.rng.seed = 99
+	var premium_offer: Dictionary = simulation._generate_contract_offer(state)
+	_check(float(premium_offer["quantity"]) > float(baseline_offer["quantity"]), "higher contract tiers offer larger orders")
+	_check(float(premium_offer["price_per_cell"]) > float(baseline_offer["price_per_cell"]), "higher contract tiers offer better pricing")
+	state.contract_offer = assured_offer
+	state.reputation["security"] = 0.0
+	_check(not simulation.accept_contract(state), "offer acceptance rechecks reputation requirements")
+	state.contract_offer = {}
 
 	state.contract_offer = {"buyer": "a test client", "quantity": 10.0, "price_per_cell": 5.0, "duration": 30.0, "expires_in": 2.0}
 	simulation.advance(state, 3.0, true)
@@ -476,6 +575,7 @@ func _test_offline_advance_has_no_security_events() -> void:
 	state.risk = 1.0
 	var report: Dictionary = simulation.advance(state, 3600.0, false)
 	_check(int(report["security_events"]) == 0, "offline advance skips security events")
+	_check(is_equal_approx(float(state.reputation["security"]), 50.0), "offline advance does not alter security reputation")
 
 func _test_security_event_effects() -> void:
 	var state: GameState = GameState.new()
@@ -484,6 +584,7 @@ func _test_security_event_effects() -> void:
 
 	state.cash = 100.0
 	simulation._trigger_security_event(state, {"type": "cash", "severity_min": 0.1, "severity_max": 0.1}, report)
+	_check(float(state.reputation["security"]) < 50.0, "security incidents damage security reputation")
 	_check(is_equal_approx(state.cash, 90.0), "cash event takes cash")
 	_check(is_equal_approx(state.lifetime_security_losses, 10.0), "cash loss recorded")
 
@@ -499,6 +600,15 @@ func _test_security_event_effects() -> void:
 	simulation._trigger_security_event(state, {"type": "cash", "severity_min": 0.1, "severity_max": 0.1}, report)
 	_check(is_equal_approx(state.cash, 95.0), "recovery halves losses")
 	_check(int(report["security_events"]) == 4, "events counted in report")
+
+	var clean_state: GameState = GameState.new()
+	var clean_simulation: Simulation = _make_sim()
+	clean_simulation.security_event_period = 1.0
+	clean_simulation.security_base_chance = 0.0
+	clean_simulation.security_risk_chance_scale = 0.0
+	var clean_report: Dictionary = {"security_losses": 0.0, "security_events": 0}
+	clean_simulation._update_security_events(clean_state, 1.0, true, clean_report)
+	_check(float(clean_state.reputation["security"]) > 50.0, "incident-free security periods build reputation")
 
 func _test_bankruptcy_rescue() -> void:
 	var state: GameState = GameState.new()
@@ -524,10 +634,14 @@ func _test_save_round_trip() -> void:
 	state.premium_sale_price = 9.5
 	state.premium_product_unlocked = true
 	state.active_product = "premium"
+	state.production_progress = {"standard": 0.25, "premium": 0.75}
+	state.sales_progress = {"standard": 0.4, "premium": 0.6}
 	state.manual_output = 3.0
 	state.production_per_second = 1.25
 	state.production_downtime = 4.0
 	state.ui_scale = 1.5
+	state.ui_theme_id = "solar"
+	state.ui_dark_mode = false
 	state.warehouse_capacity = 240.0
 	state.prep_rate = 1.7
 	state.testing_rate = 1.4
@@ -541,6 +655,12 @@ func _test_save_round_trip() -> void:
 	state.workers = {"prep": 1, "assembly": 2, "testing": 0}
 	state.lifetime_energy_cost = 55.0
 	state.lifetime_wages_paid = 66.0
+	state.lifetime_material_spend = 101.0
+	state.lifetime_upgrade_spend = 202.0
+	state.lifetime_maintenance_spend = 303.0
+	state.lifetime_hiring_spend = 404.0
+	state.reputation = {"general": 61.0, "delivery": 72.0, "quality": 83.0, "security": 94.0}
+	state.lifetime_contracts_by_tier = {"Open Market": 4, "Approved Supplier": 2, "Assured Supply": 1}
 	state.advertising_channels["business_directory"] = true
 	state.lifetime_advertising_spend = 77.0
 	state.competitor_name = "Test Power Ltd"
@@ -563,8 +683,12 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.premium_cells, 12.0), "premium inventory restored")
 	_check(is_equal_approx(loaded.premium_sale_price, 9.5), "premium price restored")
 	_check(loaded.premium_product_unlocked and loaded.active_product == "premium", "premium product state restored")
+	_check(is_equal_approx(float(loaded.production_progress["premium"]), 0.75), "production progress restored")
+	_check(is_equal_approx(float(loaded.sales_progress["standard"]), 0.4), "sales progress restored")
 	_check(is_equal_approx(loaded.production_downtime, 4.0), "downtime restored")
 	_check(is_equal_approx(loaded.ui_scale, 1.5), "ui scale restored")
+	_check(loaded.ui_theme_id == "solar", "colour scheme restored")
+	_check(not loaded.ui_dark_mode, "light mode restored")
 	_check(is_equal_approx(loaded.warehouse_capacity, 240.0), "warehouse capacity restored")
 	_check(is_equal_approx(loaded.prep_rate, 1.7), "prep rate restored")
 	_check(is_equal_approx(loaded.testing_rate, 1.4), "testing rate restored")
@@ -577,6 +701,15 @@ func _test_save_round_trip() -> void:
 	_check(is_equal_approx(loaded.energy_discount, 0.24), "energy discount restored")
 	_check(int(loaded.workers.get("assembly", 0)) == 2, "workers restored")
 	_check(is_equal_approx(loaded.lifetime_wages_paid, 66.0), "wages stat restored")
+	_check(is_equal_approx(loaded.lifetime_material_spend, 101.0), "kit spending restored")
+	_check(is_equal_approx(loaded.lifetime_upgrade_spend, 202.0), "upgrade spending restored")
+	_check(is_equal_approx(loaded.lifetime_maintenance_spend, 303.0), "maintenance spending restored")
+	_check(is_equal_approx(loaded.lifetime_hiring_spend, 404.0), "hiring spending restored")
+	_check(is_equal_approx(float(loaded.reputation["general"]), 61.0), "general reputation restored")
+	_check(is_equal_approx(float(loaded.reputation["delivery"]), 72.0), "delivery reputation restored")
+	_check(is_equal_approx(float(loaded.reputation["quality"]), 83.0), "quality reputation restored")
+	_check(is_equal_approx(float(loaded.reputation["security"]), 94.0), "security reputation restored")
+	_check(int(loaded.lifetime_contracts_by_tier["Approved Supplier"]) == 2, "contract tier history restored")
 	_check(bool(loaded.advertising_channels.get("business_directory", false)), "advertising channel restored")
 	_check(is_equal_approx(loaded.lifetime_advertising_spend, 77.0), "advertising spend restored")
 	_check(loaded.competitor_name == "Test Power Ltd", "competitor name restored")

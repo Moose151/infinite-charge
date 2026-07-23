@@ -6,7 +6,7 @@ Infinite Charge is a desktop-first Godot idle-management game about growing a ba
 
 The project is currently focused on the first garage-stage MVP:
 
-- one raw material
+- whole component kits (one per Standard Cell, two per Long-Life Cell)
 - two battery-cell products with separate pricing and demand
 - manual production
 - adjustable sale price
@@ -14,6 +14,9 @@ The project is currently focused on the first garage-stage MVP:
 - automatic sales
 - changing material price
 - starter upgrades
+- a garage-floor overview that changes with equipment, staff, storage, and security progression
+- an Operations Watch strip for imminent stock, capacity, maintenance, payroll, downtime, and margin issues
+- general, delivery, quality, and security reputation with qualified contract tiers
 - basic security risk and security upgrades
 - JSON save/load
 - offline progress
@@ -26,6 +29,7 @@ The project is currently focused on the first garage-stage MVP:
 - `scripts/formulas.gd` - demand, risk, price, and formatting formulas
 - `scripts/save_manager.gd` - JSON save/load
 - `data/upgrades/garage_upgrades.json` - starter upgrade definitions
+- `docs/MILESTONE_TWO_ACCEPTANCE.md` - completed Market Depth acceptance criteria and validation record
 
 ## Next Implementation Step
 
